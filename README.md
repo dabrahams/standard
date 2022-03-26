@@ -183,9 +183,117 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 ## 3.2. Trait declarations
 
-## 3.3. Function declarations
+## 3.3. Binding declarations
 
 ### 3.3.1. General
+
+1. Binding declarations have the form:
+
+    ```ebnf
+    binding-decl ::=
+      binding-head binding-type-annotation? binding-initializer?
+
+    binding-head ::=
+      'sink'? binding-introducer pattern
+    
+    binding-introducer ::=
+      'let'
+      'var'
+    
+    binding-type-annotation ::=
+      ':' type-expr
+    
+    binding-initializer ::=
+      '=' expr
+    ```
+
+2. (Example)
+
+    ```val
+    let (name, age): (String, Int) = ("Thomas", 3)
+    ```
+
+    This binding declaration defines two new immutable bindings: `name` and `age`.
+
+3. A binding declaration defines a new binding for each named pattern in pattern. All new bindings are defined with the same capabilities.
+
+    1. A binding declaration introduced with `let` defines immutable bindings. The value of a live immutable binding may be projected immutably. The value of an immutable binding may not be projected mutably for the duration of that binding's lifetime.
+
+    2. A binding declaration introduced with `var` defines mutable bindings. The value of a live mutable binding may be projected mutably or immutably.
+
+    3. A binding declaration introduced with `sink` defines an escapable binding. An escapable binding may only be assigned to sinkable objects. The value of an escapable binding may be consumed at a given program point if is escapable at that program point.
+
+  A mutable binding can appear on the left side of an assignment, on the right side of an assignment to a non-escapable mutable binding, as the initializer of non-escapable mutable binding, as argument to an `inout` parameter, or as argument to an `assign` parameter. An escapable binding can appear as the
+
+4. The pattern of a binding declaration may not contain any expression patterns or binding patterns.
+
+5. A binding declaration may be defined at module scope, namespace scope, type scope, or function scope.
+
+    1. A binding declaration at module scope or namespace scope is called a global binding declaration. It introduces one or more global bindings.
+      
+    2. A binding declaration at type scope is called a static member binding declaration if it contains a `static` modifier. Otherwise, it is called a member binding declaration. A static member binding declaration introduces one or more global bindings. A member binding declaration introduces one or more member bindingss.
+      
+    3. A binding declaration at function scope is called a local binding declaration. It introduces one or more local bindings.
+
+6. The `sink` capability may only appear in a local binding declaration.
+
+### 3.3.2. Initialization
+
+1. A local binding declaration, a static member binding declaration, or global binding declaration must contain a initializer. Initialization occurs immediately after declaration.
+
+2. A member binding declaration may not have an initializer.
+
+3. The initialization of an escapable binding consumes the value of its initializer. Initialization occurs in the constructor of the object of which the introduced bindings are members (see Type initialization).
+
+4. The initialization of a non-escapable binding projects the object to which its initializer evaluates. The projection is immutable if the binding is immutable. Otherwise, it is mutable. The projection is for the duration of the binding's lifetime.
+
+5. (Example)
+
+    ```val
+    fun main() {
+      var fruits = ["apple", "mango", "orange"]
+      var first = fruits[0] // mutable projection of 'fruits[0]'
+      first = "strawberry"
+      print(first)          // projection ends afterward
+    }
+    ```
+
+### 3.3.3. Lifetime
+
+1. Binding lifetimes are not bound to lexical scopes.
+
+2. A binding is said to be alive at a given program point if that program point falls within one of its lifetimes. Otherwise, it is said to be dead.
+
+3. The lifetime of a global binding begins with its initialization is complete and ends when the program terminates.
+
+4. The lifetime of a member binging `b` begins when the initialization of the object `o` of which it is a sub-object is completes and ends when `o` is consumed, or when `b` is consumed in a `sink` method of `o`.
+
+5. The lifetime of a local binding begins when its initialization is complete and ends after its last use in an operation, or after any consuming operation.
+
+6. (Example) Lifetime ending at last use.
+
+    ```val
+    fun main() {
+      let count = 1 // lifetime of 'count' begins here
+      count += 1    // a use of 'count'
+      print(count)  // last use of 'count', lifetime ends afterward
+      print("done")
+    }
+    ```
+
+7. (Example) Lifetime ending because of a consuming operation.
+
+    ```val
+    fun main() {
+      sink let count = 1 // lifetime of 'count' begins here
+      sink _ = count     // lifetime of 'count' ends here
+      print(count)       // error: 'count' has been consumed
+    }
+    ```
+
+## 3.4. Function declarations
+
+### 3.4.1. General
 
 1. Function declarations have the form:
 
@@ -220,15 +328,15 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 4. A function declaration may be defined at module scope, namespace scope, type scope, or function scope.
 
-      1. A function declaration at module scope or namespace scope is called a global function declaration. It introduces a global function.
+    1. A function declaration at module scope or namespace scope is called a global function declaration. It introduces a global function.
       
-      2. A function declaration at type scope is called a static method declaration if it contains a `static` modifier. Otherwise, it is called a method declaration. A static method declaration introduces a global function. A method declaration introduces one or more methods.
+    2. A function declaration at type scope is called a static method declaration if it contains a `static` modifier. Otherwise, it is called a method declaration. A static method declaration introduces a global function. A method declaration introduces one or more methods.
       
-      3. A function declaration at type scope declared with `init` is called a constructor declaration. It introduces a global function.
+    3. A function declaration at type scope declared with `init` is called a constructor declaration. It introduces a global function.
 
-      4. A function declaration at type scope declared with `deinit` is called a destructor declaration. It introduces a sink method.
+    4. A function declaration at type scope declared with `deinit` is called a destructor declaration. It introduces a sink method.
       
-      5. A function declaration at function scope is called a local function declaration. It introduces a local function.
+    5. A function declaration at function scope is called a local function declaration. It introduces a local function.
 
 5. The `init` introducer and the `deinit` introducer may only appear in a function declaration at type scope.
 
@@ -240,7 +348,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 9.  A capture list may only appear in a function declaration at local scope.
 
-### 3.3.2. Function signatures
+### 3.4.2. Function signatures
 
 1. Function signatures have the form:
 
@@ -251,7 +359,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 2. The default value of a parameter declaration may not refer to another parameter in a function signature.
 
-### 3.3.3. Method declarations
+### 3.4.3. Method declarations
 
 1. A method declaration must contain a `let` method implementation.
 
@@ -301,7 +409,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 8. A bodiless method declaration or a method declaration that contains a bodiless method implementation defines a trait method requirement and may only appear at trait scope. A bodiless static method declaration defines a static trait method requirement and may only appear at trait scope.
 
-### 3.3.4. Method implementations
+### 3.4.4. Method implementations
 
 1. Method implementations have the form:
 
@@ -327,7 +435,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
     2. `inout` parameters are mutable and escapable, and they must be alive at the end of every terminating execution path; and
     
-    3. `set` parameters are dead and mutable, and they must be alive at the end of every terminating execution path.
+    3. `assign` parameters are dead and mutable, and they must be alive at the end of every terminating execution path.
 
 6. The output type of a method declaration is the type declared as the return type defined by the function signature of the containing method declaration.
 
@@ -335,9 +443,9 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 8. A `let` method implementation or a `sink` method implementation must return an escapable object whose type is a subtype of its return type
 
-## 3.4. Subscript declarations
+## 3.5. Subscript declarations
 
-### 3.4.1. General
+### 3.5.1. General
 
 1. Subscript declarations have the form:
 
@@ -370,11 +478,11 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 3. A subscript declaration may be defined at module scope, namespace scope, type scope, or function scope.
 
-      1. A subscript declaration at module scope or namespace scope introduces a global subscript.
+    1. A subscript declaration at module scope or namespace scope introduces a global subscript.
       
-      2. A subscript declaration at type scope is called a static subscript declaration if it contains a `static` modifier. Otherwise, it is called a member subscript declaration. A static subscript declaration introduces a global subscript. A member subscript declaration introduces a member subscript.
+    2. A subscript declaration at type scope is called a static subscript declaration if it contains a `static` modifier. Otherwise, it is called a member subscript declaration. A static subscript declaration introduces a global subscript. A member subscript declaration introduces a member subscript.
       
-      3. A subscript declaration at function scope introduces a local subscript.
+    3. A subscript declaration at function scope introduces a local subscript.
 
 4. A member subscript declaration without an identifier is called a nameless subscript declaration. It introduces a nameless subscript.
 
@@ -386,7 +494,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 8. A capture list may only appear in a subscript declaration at local scope.
 
-### 3.4.2. Subscript signatures
+### 3.5.2. Subscript signatures
 
 1. Subscript signatures have the form:
 
@@ -397,7 +505,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 2. The default value of a parameter declaration may not refer to another parameter in a subscript signature.
 
-### 3.4.3. Subscript implementations
+### 3.5.3. Subscript implementations
 
 1. Subscript implementations have the form:
 
@@ -442,7 +550,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 9. A `sink` subscript implementation must have a return statement on every terminating execution path. It must return escapable objects whose types are subtype of the implementation's output type
 
-## 3.5. Parameter declarations
+## 3.6. Parameter declarations
 
 1. Parameter declarations have the form:
 
