@@ -44,9 +44,9 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 3. When an object `o1` that projects an object `o2`, `o2` is said to be projected by o1`.
 
-    *(Note: Copying creates a new object that is not a projection.)*
+4. (Note) Copying creates a new object that is not a projection.
 
-4. (Example)
+5. (Example)
 
     ```val
     type A { fun zero: Int { 0 } }
@@ -59,9 +59,9 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     }
     ```
 
-5. The object yielded by an accessor projects the arguments bound to the projection's out parameters.
+6. The object yielded by an accessor projects the arguments bound to the projection's out parameters.
 
-6. (Example)
+7. (Example)
 
     ```val
     fun min<T, E>(
@@ -82,13 +82,13 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
     The expression `min(x, y, by: comparator)` is a call to the `let` accessor of `min`, which projects the values of its first and second arguments, but not that of its third argument.
 
-7. A closure projects the objects it captures by projection.
+8. A closure projects the objects it captures by projection.
 
-8. An object projects the objects captured by the stored projections with which it has been initialized.
+9. An object projects the objects captured by the stored projections with which it has been initialized.
 
-9. If an object `o1` projects an object `o2` immutably, `o2` is immutable for the duration of `o1`'s lifetime. If an object `o1` projects an object `o2` mutably, `o2` is inaccessible for the duration of `o1`'s lifetime.
+10. If an object `o1` projects an object `o2` immutably, `o2` is immutable for the duration of `o1`'s lifetime. If an object `o1` projects an object `o2` mutably, `o2` is inaccessible for the duration of `o1`'s lifetime.
 
-10. (Example) Mutable projection:
+11. (Example) Mutable projection:
 
     ```val
     fun main() {
@@ -100,7 +100,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     }
     ```
 
-11. (Example) Immutable projection:
+12. (Example) Immutable projection:
 
     ```val
     fun main() {
@@ -342,15 +342,17 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 4. A function declaration may be defined at module scope, namespace scope, type scope, or function scope.
 
-    1. A function declaration at module scope or namespace scope is called a global function declaration. It introduces a global function.
+    1. A function declaration at module scope or namespace scope is called a global function declaration. It introduces one global function.
       
-    2. A function declaration at type scope is called a static method declaration if it contains a `static` modifier. Otherwise, it is called a method declaration. A static method declaration introduces a global function. A method declaration introduces one or more methods.
-      
-    3. A function declaration at type scope declared with `init` is called a constructor declaration. It introduces a global function.
+    2. A function declaration at type scope that contains a `static` modifier is called a static method declaration; it is also a global function declaration. A static method declaration introduces one global function.
 
-    4. A function declaration at type scope declared with `deinit` is called a destructor declaration. It introduces a sink method.
+    3. A function declaration at type scope that does not contain a `satic` modifier is called a method declaration. It introduces one or more methods.
       
-    5. A function declaration at function scope is called a local function declaration. It introduces a local function.
+    4. A function declaration at type scope declared with `init` is called a constructor declaration. It introduces one global function.
+
+    5. A function declaration at type scope declared with `deinit` is called a destructor declaration. It introduces one sink method.
+      
+    6. A function declaration at function scope is called a local function declaration. It introduces a local function.
 
 5. The `init` introducer and the `deinit` introducer may only appear in a function declaration at type scope.
 
@@ -373,13 +375,43 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 2. The default value of a parameter declaration may not refer to another parameter in a function signature.
 
+3. The output type of a function signture defines the output type of the containing declaration. If that type is omitted, the output type of the declaration is interpreted as `()`.
+
+### 3.4.3. Function implementations
+
+1. The brace statement in the body of a global or local function declaration defines its implementation. A global or local  function declaration must have a function implementation, unless it is static method declaration.
+
+2. The parameters declared in the signature of the function declaration containing a function implementation define the parameters of that implementation.
+
+3. All parameters of a function implementation are treated as immediate local bindings in that implementation, defined before its first statement. All parameters except `assign` parameters are alive before the first statement. Further:
+
+    1. `sink` parameters are immutable and escapable; and
+
+    2. `inout` parameters are mutable and escapable, and they must be alive at the end of every terminating execution path; and
+    
+    3. `assign` parameters are dead and mutable, and they must be alive at the end of every terminating execution path.
+
+4. The output type of a function implementation is the output type of the containing function declaration, unless it is an explicit `inout` method implementation (see Method implementations). A function implementation must have a return statement on every terminating execution path, unless the output type of the containing declaration is `()`. In that case, explicit return statements may be omitted. A function implementation must return an escapable object whose type is a subtype of the output type of the containing method declaration.
+
+5. The `return` keyword may be omitted if the body of the function implementation consists of a single expression.
+
+6. (Example) Expression-bodied function
+
+    ```val
+    fun factorial(_ n: Int) -> Int {
+      if n > 0 { n * factorial(n - 1) else { 1 } }
+    }
+    ```
+
 ### 3.4.3. Method declarations
 
-1. A method declaration must contain a `let` method implementation.
+1. A bodiless method declaration or a method declaration that contains a bodiless method implementation defines a trait method requirement and may only appear at trait scope. A bodiless static method declaration defines a static trait method requirement and may only appear at trait scope.
 
-2. A method declaration may contain at most one method implementations of each kind.
+2. A method declaration may contain at most one method implementation of each kind. A method declaration that contains one or more explicit method implementations may not have a receiver modifier.
 
-3. A method declaration for a method `m` that contains an `inout` method implementation is automatically provided with a synthesized `sink` method implementation, defined as follows:
+3. A non-bodiless method declaration must contain an explicit `let` method implementation, or its body must be a brace statement. In that case, that brace statement is interpreted as an implicit method implementation whose kind depends on the receiver modifier of the method declaration.
+
+4. A method declaration for a method `m` that contains an explicit `inout` method implementation is automatically provided with a synthesized `sink` method implementation, defined as follows:
 
     ```val
     sink {
@@ -389,13 +421,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     }
     ```
 
-4. A method declaration that contains one or more explicit method implementations may not have a receiver modifier.
-
-5. If the body of a method declaration is a brace statement, it is interpreted as the body of an implicit method implementation. The kind of that method implementation depends on the receiver modifier of the method declaration. If the method declaration does not have a receiver modifier, its implicit method implementation is `let`. Otherwise, it has the kind corresponding to the receiver modifier.
-
-6. If a method declaration contains an explicit `inout` method implementation, 
-
-7. (Example)
+5. (Example)
 
     ```val
     type Vector2 {
@@ -419,13 +445,11 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     }
     ```
 
-    The method `Vector2.scaled(by:)` has an explicit `let` implementation, an explicit `inout` implementation and a synthesized `sink` implementation. The method `Vector2.dot(_:)` has an implicit `let` implementation. The method `Vector2.transpose` has an implicit `inout` implementation and a synthesized `sink` implementation.
-
-8. A bodiless method declaration or a method declaration that contains a bodiless method implementation defines a trait method requirement and may only appear at trait scope. A bodiless static method declaration defines a static trait method requirement and may only appear at trait scope.
+    The method `Vector2.scaled(by:)` has an explicit `let` implementation, an explicit `inout` implementation and a synthesized `sink` implementation. The method `Vector2.dot(_:)` has an implicit `let` implementation. The method `Vector2.transpose` has an implicit `inout` implementation.
 
 ### 3.4.4. Method implementations
 
-1. Method implementations have the form:
+1. A method implementation is a function implementation defined in a method. It may be defined implicitly or explicitly (see Method declarations). Explicit method implementations have the form:
 
     ```ebnf
     method-impl ::=
@@ -437,25 +461,13 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
       'inout'
     ```
 
-2. A method implementation introduced with `let` is called a `let` method implementation; one introduced with `sink` is called a `sink` method implementation; one introduced with `inout` is called an `inout` method implementation.
+2. An explicit method implementation introduced with `let` is called a `let` method implementation; one introduced with `sink` is called a `sink` method implementation; one introduced with `inout` is called an `inout` method implementation.
 
 3. The parameters declared in the signature of the method declaration containing a method implementation define the parameters of that implementation. An additional implicit parameter, called the receiver parameter, and named `self`, represents the method receiver.
 
-4. The passing convention of the receiver parameter corresponds to the kind of the method implementation.
+4. In an explicit method implementation, the passing convention of the receiver parameter corresponds to the kind of the method implementation: it is `let` in a `let` implementation; it is `sink` in a `sink` implementation; it is `inout` in a `inout` implementation. In an implicit method implementation, the passing convention of the receiver parameter is defined by the receiver modifier of the containing method declaration.
  
-5. All parameters of a method implementation are treated as immediate local bindings in that implementation, defined before its first statement. All parameters except `assign` parameters are alive before the first statement. Further:
-
-    1. `sink` parameters are immutable and escapable; and
-
-    2. `inout` parameters are mutable and escapable, and they must be alive at the end of every terminating execution path; and
-    
-    3. `assign` parameters are dead and mutable, and they must be alive at the end of every terminating execution path.
-
-6. The output type of a method declaration is the type declared as the return type defined by the function signature of the containing method declaration.
-
-7. A method implementation must have a return statement on every terminating execution path, unless its output type is `()`. The `return` keyword may be omitted if the body of the method implementation consists of a single expression.
-
-8. A `let` method implementation or a `sink` method implementation must return an escapable object whose type is a subtype of its return type
+5. The output type of an explicit `inout` method implementation is `()`.
 
 ## 3.5. Subscript declarations
 
@@ -492,21 +504,27 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 3. A subscript declaration may be defined at module scope, namespace scope, type scope, or function scope.
 
-    1. A subscript declaration at module scope or namespace scope introduces a global subscript.
+    1. A subscript declaration at module scope or namespace scope introduces a global subscript declaration. It introduces a global subscript.
       
-    2. A subscript declaration at type scope is called a static subscript declaration if it contains a `static` modifier. Otherwise, it is called a member subscript declaration. A static subscript declaration introduces a global subscript. A member subscript declaration introduces a member subscript.
+    2. A subscript declaration at type scope that contains a `static` modifier is called a static subscript declaration; it is also a global subscript declaration. A static member subscript declaration introduces a global susbcript.
+
+    3. A subscript declaration at type scope that does not contain a `static` modifier is called a member subscript declaration. It introduces a member subscript. A member subscript declaration may not have a receiver modifier.
       
-    3. A subscript declaration at function scope introduces a local subscript.
+    4. A subscript declaration at function scope is a local subscript declaration. It introduces a local subscript.
 
-4. A member subscript declaration without an identifier is called a nameless subscript declaration. It introduces a nameless subscript.
+4. A member subscript declaration or a static member subscript declaration without an identifier is called a nameless subscript declaration. It introduces a nameless subscript. A nameless subscript declaration must have an explicit parameter list.
 
-5. If the body of a subscript declaration is a brace statement, it is interpreted as the body of a `let` subscript implementation and the subscript declaration is interpreted as having a single subscript implementation.
+5. A member subscript declaration or a static member subscript declaration may be defined without an explicit parameter list. Such a declaration is called a property subscript declaration. It introduces a property subscript.
 
-6. A subscript declaration that contains a bodiless subscript implementation defines a trait subscript requirement and may only appear at trait scope.
+6. A bodiless subscript declaration or a subscript declaration that contains a bodiless subscript implementation defines a trait subscript requirement and may only appear at trait scope. A bodiless static subscript declaration defines a static trait subscript requirement and may only appear at trait scope.
 
-7. An operator notation specifier defines an operator member subscript; it may only appear in a subscript declaration at type scope.
+7. A subscript declaration may contain at most one subscript implementation of each kind.
 
-8. A capture list may only appear in a subscript declaration at local scope.
+8. If the body of a subscript declaration is a brace statement, it is interpreted as the body of a `let` subscript implementation.
+
+9. An operator notation specifier defines an operator member subscript; it may only appear in a subscript declaration at type scope.
+
+10.  A capture list may only appear in a subscript declaration at local scope.
 
 ### 3.5.2. Subscript signatures
 
@@ -514,14 +532,19 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
     ```ebnf
     subscript-signature ::=
-      '(' param-list? ')' ':' type-expr
+      explicit-subscript-param-list? ':' 'var'? type-expr
+
+    explicit-subscript-param-list ::=
+      '(' param-list? ')'
     ```
 
 2. The default value of a parameter declaration may not refer to another parameter in a subscript signature.
 
+3. The output type of a subscript signture defines the output type of the containing declaration. If that type is prefixed by `var`, all projections produced by the subscript are mutable. Otherwise, only the projections produced by the `inout` implementation of the subscript are mutable.
+
 ### 3.5.3. Subscript implementations
 
-1. Subscript implementations have the form:
+1. A subscript implementation may be defined ikmplicitly or explicitly. Explicit subscript implementations have the form:
 
     ```ebnf
     subscript-impl ::=
@@ -534,23 +557,13 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
       'assign'
     ```
 
-2. A subscript implementation introduced with `let` is called a `let` subscript implementation; one introduced with `sink` is called a `sink` subscript implementation; one introduced with `inout` is called an `inout` subscript implementation; one introduced with `assign` is called an `assign` subscript implementation.
+2. Am explicit subscript implementation introduced with `let` is called a `let` subscript implementation; one introduced with `sink` is called a `sink` subscript implementation; one introduced with `inout` is called an `inout` subscript implementation; one introduced with `assign` is called an `assign` subscript implementation.
 
-3. A subscript declaration may not contain multiple subscript implementations of the same kind.
+3. The parameters declared in the signature of the subscript declaration containing a subscript implementation define the parameters of that implementation. In a member subscript declaration, an additional implicit `out` parameter, called the receiver parameter, named `self`, and representing the subscript receiver.
 
-4. The parameters declared in the signature of the subscript declaration containing a subscript implementation define the parameters of that implementation. An additional implicit parameter, called the receiver parameter, named `self`, and representing the method receiver is provided to the subscript implementations of a member subscript. The passing convention of the receiver parameter is defined by the receiver modifier of the member subscript declaration.
+4. The passing convention of an `out` parameter dependends on the kind of the sibscript implementation: it is a `let` parameter in a `let` subscript implementation; or it is a `sink` parameter in an `sink` subscript implementation; or it is an `inout` parameter in an `inout` subscript implementation; or it is an `assign` parameter in an `assign` subscript implementation.
 
-5. The passing convention of an `out` parameter dependends on the kind of the sibscript implementation:
-
-    1. it is a `let` parameter in a `let` subscript implementation; or
-
-    2. it is a `sink` parameter in an `sink` subscript implementation; or
-    
-    3. it is an `inout` parameter in an `inout` subscript implementation; or
-
-    4. it is an `assign` parameter in an `assign` subscript implementation.
-
-6. All parameters of a subscript implementation are treated as immediate local bindings in that implementation, defined before its first statement. All parameters except `assign` parameters are alive before the first statement. Further:
+5. All parameters of a subscript implementation are treated as immediate local bindings in that implementation, defined before its first statement. All parameters except `assign` parameters are alive before the first statement. Further:
 
     1. `sink` parameters are immutable and escapable.
 
@@ -558,11 +571,9 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     
     3. `assign` parameters are dead and mutable. They must be alive at the end of every terminating execution path.
 
-7. The output type of a subscript declaration is the type declared as the yielded type of the containing subscript declaration.
+6.  A `let` subscript implementation or an `inout` subscript implementation must have exactly one a yield statement on every terminating execution path. Given a subscript declaration with an output type `T`, a `let` subscript implementation must yield an immutable projection of an object whose type is subtype of `T`, unless the output signature of the subscript declaration is prefixed by `var`. In that case it must yield an mutable projection of an object of type `T`. An `inout` subscript implementation must yield a mutable projection of an object of type `T`.
 
-8. A `let` subscript implementation or an `inout` subscript implementation must have a yield statement on every terminating execution path. A `let` subscript implementation must yield objects whose types are subtype of the implementation's output type. An `inout` subscript implementation must yield objects whose types are the implementation's output type.
-
-9. A `sink` subscript implementation must have a return statement on every terminating execution path. It must return escapable objects whose types are subtype of the implementation's output type
+7. A `sink` subscript implementation must have a return statement on every terminating execution path. It must return an escapable object whose type is subtype of the output type of the containing subscript declaration.
 
 ## 3.6. Parameter declarations
 
@@ -595,8 +606,97 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 4. A default value must be a non-consuming expression. A default value to a `sink` parameter must evlauate to an escapable object.
 
-# 4. Expressions
+# 4. Statements
 
-## 4.1. Consuming expressions
+## 4.1. General
+
+1. Statements of the form:
+
+    ```ebnf
+    stmt ::=
+      brace-stmt
+      return-stmt
+      yield-stmt
+      for-stmt
+      while-stmt
+      continue-stmt
+      break-stmt
+      decl
+      expr
+    ```
+
+2. Except as indicated, statements are executed in sequence.
+
+3. Statements do not require explicit statement delimiter. Semicolons can be used to separate statements explicitly, for legibility or to disambiguate exceptional situations.
+
+4. (Note) A common practice is to simply each statement on a new line.
+
+## 4.2. Brace statements (a.k.a. code blocks)
+
+1. Brace statements are sequences of statements executed in a lexical scope.
+
+2. Brace statements have the form:
+
+    ```ebnf
+    brace-stmt ::=
+      '{' stmt-list? '}'
+
+    stmt-list ::=
+      stmt (';'* stmt)+ ';'*
+    ```
+
+## 4.3 Return statments
+
+1. Return statements return an object from a function, terminating the execution path and transferring control back to the function's caller.
+
+2. Return statements have the form:
+
+    ```ebnf
+    'return' expr?
+    ```
+
+3.  The expression in a return statement is called its operand. If the operand is omitted, it is interpreted as `()`. A return statement consumes the value of the operand to initialize an escapable object as result of the call to the containing function.
+
+## 4.4 Yield statments
+
+1. Yield statements project an object out of a subscript, suspending the execution path and temporarily transferring control to the subscript's caller. Control comes back to the subscript once after the last use of the yielded projection at the call site, resuming execution at the statement that directly follows the yield statement.
+
+2. (Example)
+
+    ```val
+    subscript element<T>(at: index, in array: Array<T>): T {
+      print("will yield")
+      yield array[position]
+      if a > b { yield a } else { yield b }
+      print("did yield")
+    }
+
+    fun main() {
+      let fruits = ["apple", "mango", "orange"]
+      let f = element(at: 1, in: fruits) // "will yield"
+      print("foo")                       // "foo"
+      print(f)                           // "mango"
+                                         // "did yield"
+      print("bar")                       // "bar"
+    }
+    ```
+
+3. Yield statements have the form:
+
+    ```ebnf
+    'yield' expr
+    ```
+
+4. The expression in a yield statement is called its operand. A yield statement projects the value of its operand as the result of the call to the containing subscript. The yielded object is projected immutably in a `let` subscript implementation and mutably in an `inout` subscript implementation. The mutability marker `&` must prefix a mutable projection.
+
+## 4.5 For statments
+
+TBD
+
+## 4.5 While statments
+
+# 5. Expressions
+
+## 5.1. Consuming expressions
 
 1. An expression is consuming if and only if its evaluation may end the lifetime of one or objects not created by the expression's evaluation.
