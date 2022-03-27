@@ -199,6 +199,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     binding-introducer ::=
       'let'
       'var'
+      'inout'
     
     binding-type-annotation ::=
       ':' type-expr
@@ -219,7 +220,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
     1. A binding declaration introduced with `let` defines immutable bindings. The value of a live immutable binding may be projected immutably. The value of an immutable binding may not be projected mutably for the duration of that binding's lifetime.
 
-    2. A binding declaration introduced with `var` defines mutable bindings. The value of a live mutable binding may be projected mutably or immutably.
+    2. A binding declaration introduced with `var` and `inout` defines mutable bindings. The value of a live mutable binding may be projected mutably or immutably.
 
     3. A binding declaration introduced with `sink` defines an escapable binding. An escapable binding may only be assigned to sinkable objects. The value of an escapable binding may be consumed at a given program point if is escapable at that program point.
 
@@ -229,32 +230,32 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 5. A binding declaration may be defined at module scope, namespace scope, type scope, or function scope.
 
-    1. A binding declaration at module scope or namespace scope is called a global binding declaration. It introduces one or more global bindings.
+    1. A binding declaration at module scope or namespace scope is called a global binding declaration. It introduces one or more global bindings. A global binding declaration must be introduced with `let`.
       
     2. A binding declaration at type scope is called a static member binding declaration if it contains a `static` modifier. Otherwise, it is called a member binding declaration. A static member binding declaration introduces one or more global bindings. A member binding declaration introduces one or more member bindingss.
       
     3. A binding declaration at function scope is called a local binding declaration. It introduces one or more local bindings.
 
-6. The `sink` capability may only appear in a local binding declaration.
+6. The `sink` capability may only appear in a local binding declaration introduced with `let` or `var`.
 
 ### 3.3.2. Initialization
 
 1. A local binding declaration, a static member binding declaration, or global binding declaration must contain a initializer. Initialization occurs immediately after declaration.
 
-2. A member binding declaration may not have an initializer.
+2. A member binding declaration may not have an initializer. Initialization occurs in the constructor of the object of which the introduced bindings are members (see Type initialization).
 
-3. The initialization of an escapable binding consumes the value of its initializer. Initialization occurs in the constructor of the object of which the introduced bindings are members (see Type initialization).
+3. The initialization of an escapable binding or a binding whose declaration is introduced with `var` consumes the value of its initializer.
 
-4. The initialization of a non-escapable binding projects the object to which its initializer evaluates. The projection is immutable if the binding is immutable. Otherwise, it is mutable. The projection is for the duration of the binding's lifetime.
+4. The initialization of a non-escapable binding whose declaration is introduced with `let` or `inout` projects the object to which its initializer evaluates. The projection is immutable if the binding is immutable. Otherwise, it is mutable. The projection is for the duration of the binding's lifetime.
 
 5. (Example)
 
     ```val
     fun main() {
       var fruits = ["apple", "mango", "orange"]
-      var first = fruits[0] // mutable projection of 'fruits[0]'
+      inout first = fruits[0] // mutable projection of 'fruits[0]'
       first = "strawberry"
-      print(first)          // projection ends afterward
+      print(first)            // projection ends afterward
     }
     ```
 
