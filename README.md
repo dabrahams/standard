@@ -291,6 +291,20 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     }
     ```
 
+8. A dead immediate local mutable binding can be re-initialized, starting a new lifetime.
+
+9. (Exemple) A binding with two lifetimes.
+
+    ```val
+    fun borrow<T>(_ thing: inout T) {
+      let a = [thing]         // lifetime of 'thing' ends here
+      print(a)
+      thing = a.remove_last() // new lifetime of 'thing' starts here.
+    }
+    ```
+
+    The lifetime of `thing` ends when `a` is initialized because construction an array literal consumes the literal's elements. A new lifetime starts before `borrow` returns as the call to `Array.remove_last` produces an independent value.
+
 ## 3.4. Function declarations
 
 ### 3.4.1. General
