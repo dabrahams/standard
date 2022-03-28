@@ -412,7 +412,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 3. A non-bodiless method declaration must contain an explicit `let` method implementation, or its body must be a brace statement. In that case, that brace statement is interpreted as an implicit method implementation whose kind depends on the receiver modifier of the method declaration.
 
-4. A method declaration for a method `m` that contains an explicit `inout` method implementation is automatically provided with a synthesized `sink` method implementation, defined as follows:
+4. The declaration of a method `m` that contains an explicit `inout` method implementation is automatically provided with a synthesized `sink` method implementation, defined as follows:
 
     ```val
     sink {
@@ -422,7 +422,15 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     }
     ```
 
-5. (Example)
+5. The declaration of a method `m` that contains an explicit `sink` method implementation is automatically provided with a synthesized `inout` method implementation, defined as follows:
+
+    ```val
+    inout {
+      self = m(arg1, ..., argn)
+    }
+    ```
+
+6. (Example)
 
     ```val
     type Vector2 {
@@ -430,7 +438,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
       var x: Double
       var y: Double
 
-      fun scaled(by factor: Double) -> Vecto2 {
+      fun scaled(by factor: Double) -> Self {
         let   { Vector2(x: x * factor, y: y * factor) }
         inout { x *= factor; y *= factor }
       }
@@ -883,7 +891,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     primary-expr ::=
       scalar-literal
       compound-literal
-      ident
+      primary-decl-ref
       implicit-member-ref
       capture-expr
       lambda-expr
@@ -909,7 +917,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 ### 5.3.3. Compound literals
 
-#### General
+#### 5.3.3.1. General
 
 1. Compound literals have the form:
 
@@ -921,7 +929,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 2. A compound literal consumes the value of each of its components.
 
-#### Buffer literals
+#### 5.3.3.2. Buffer literals
 
 1. Buffer literals have the form:
 
@@ -945,7 +953,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     let e: Int[] = []        // warning: zero-lenght buffer
     ```
 
-#### Map literal
+#### 5.3.3.3. Map literal
 
 1. Map literals have the form:
 
@@ -975,9 +983,99 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     let e: Map<Double, String> = [:] // OK
     ```
 
-## 5.4. Function calls
+### 5.3.4. Primary declaration references
 
-### 5.4.1. General
+1. Primary declaration references have the form:
+
+    ```ebnf
+    primary-decl-ref ::=
+      ident-expr type-argument-list?
+    ```
+
+### 5.3.5. Identifiers
+
+1. Identifiers have the form:
+
+    ```ebnf
+    ident-expr ::=
+      entity-ident impl-ident?
+    
+    entity-ident ::=
+      IDENT
+      fun-entity-ident
+      oper-notation OPER
+
+    fun-entity-ident ::=
+      IDENT '(' argument-label+ ')'
+
+    argument-label ::=
+      (IDENT | '_') ':'
+
+    impl-ident ::=
+      '#' method-introducer
+    ```
+
+2. An identifier may not have any whitespace between its constituent tokens.
+
+3. An identifier that denotes a non-static binding member or a non-static method may only be used as part of a value member access. An identifier that denotes a static binding member or a static method may only be used as part of a type member access.
+
+4. (Example)
+
+    ``val
+    type A {
+      let m: Int
+      static let n = 0
+    }
+
+    let foo = A(m: 0)
+    let i = foo.m   // OK
+    let j = A.m     // OK
+    let k = foo.n   // error
+    let l = A.n     // OK
+    ```
+
+5. An identifier may contain be suffixed by a method introducer if and only if its entity identifier refers to a method declaration for which an explicit or synthesized method implementation for the same method introducer exists.
+
+6. (Example)
+
+    ```val
+    type Vector2 {
+
+      var x: Double
+      var y: Double
+
+      fun scaled(by factor: Double) -> Self {
+        let   { Vector2(x: x * factor, y: y * factor) }
+        inout { x *= factor; y *= factor }
+      }
+
+    }
+
+    let f = Vector2.scaled(by:)#let  // OK
+    let g = Vector2.scaled(by:)#sink // OK
+    ```
+
+## 5.4. Compound expressions
+
+### 5.4.1. Member accesses
+
+#### 5.4.1.1. General
+
+1. Member accesses have the form:
+
+    ```ebnf
+    value-member-expr ::=
+      expr '.' primary-decl-ref
+      type-expr '.' primary-decl-ref
+    ```
+
+2. A member access whose declaration reference denotes a non-static member binding or a non-static method is called a value member access. A member access whose declaration reference denotes a a static binding member or a static method is called a type member access.
+
+3. A value member access whose base is an expression is called an unbound value member access.
+
+### 5.4.2. Function calls
+
+#### 5.4.2.1. General
 
 1. Function calls have the form:
 
@@ -1005,3 +1103,16 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     4. otherwise, the call expression is a function call.
 
 3. Arguments to `sink` parameters are consumed. Arguments to `let` parameters are projected immutably in the entire call expression. Arguments to `inout` and `set` parameters are projected mutably in the entire call expression.
+
+## 5.5. Operators
+
+### 5.5.1. Operator notations
+
+1. Operator notations have the form:
+
+    ```ebnf
+    oper-notation ::=
+      'infix'
+      'prefix'
+      'postfix'
+    ```
