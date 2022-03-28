@@ -226,7 +226,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
   A mutable binding can appear on the left side of an assignment, on the right side of an assignment to a non-escapable mutable binding, as the initializer of non-escapable mutable binding, as argument to an `inout` parameter, or as argument to an `assign` parameter. An escapable binding can appear as the
 
-4. The pattern of a binding declaration may not contain any expression patterns or binding patterns.
+4. The pattern of a binding declaration may not contain any binding patterns and, unless it appears in the condition of a loop statement or in the condition of a selection expression, it may not contain any expression patterns.
 
 5. A binding declaration may be defined at module scope, namespace scope, type scope, or function scope.
 
@@ -240,15 +240,17 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 ### 3.3.2. Initialization
 
-1. A local binding declaration, a static member binding declaration, or global binding declaration must contain a initializer. Initialization occurs immediately after declaration.
+1. A static member binding declaration, or global binding declaration must contain an initializer. Initialization occurs at the first dynamic use of one of the declared bindings.
 
-2. A member binding declaration may not have an initializer. Initialization occurs in the constructor of the object of which the introduced bindings are members (see Type initialization).
+2. A local binding declaration must contain an initializer unless it appears in the condition of a match expression. If the binding declaration is a sub-statement in a brace statement, initialization occurs immediately after declaration. If the binding declaration is a condition in a loop statement or a condition in a selection expression, initialization occurs immediately after the a successful pattern matching.
 
-3. The initialization of an escapable binding or a binding whose declaration is introduced with `var` consumes the value of its initializer.
+3. A member binding declaration may not have an initializer. Initialization occurs in the constructor of the object of which the introduced bindings are members (see Type initialization).
 
-4. The initialization of a non-escapable binding whose declaration is introduced with `let` or `inout` projects the object to which its initializer evaluates. The projection is immutable if the binding is immutable. Otherwise, it is mutable. The projection is for the duration of the binding's lifetime.
+4. The initialization of an escapable binding or a binding whose declaration is introduced with `var` consumes the value of its initializer.
 
-5. (Example)
+5. The initialization of a non-escapable binding whose declaration is introduced with `let` or `inout` projects the object to which its initializer evaluates. The projection is immutable if the binding is immutable. Otherwise, it is mutable. The projection is for the duration of the binding's lifetime.
+
+6. (Example)
 
     ```val
     fun main() {
@@ -619,7 +621,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
       return-stmt
       yield-stmt
       for-stmt
-      while-stmt
+      loop-stmt
       continue-stmt
       break-stmt
       decl
@@ -645,6 +647,8 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     stmt-list ::=
       stmt (';'* stmt)+ ';'*
     ```
+
+3. The statements contained in a brace statements are called its sub-statements.
 
 ## 4.3 Return statments
 
@@ -690,11 +694,109 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 4. The expression in a yield statement is called its operand. A yield statement projects the value of its operand as the result of the call to the containing subscript. The yielded object is projected immutably in a `let` subscript implementation and mutably in an `inout` subscript implementation. The mutability marker `&` must prefix a mutable projection.
 
-## 4.5 For statments
+## 4.5 Loop statments
 
-TBD
+1. Loop statements have the form:
 
-## 4.5 While statments
+    ```ebnf
+    loop-stmt ::=
+      loop-label? do-while-stmt
+      loop-label? while-stmt
+      loop-label? for-stmt
+
+    loop-label ::=
+      IDENT ':'
+    ```
+
+2. A break or a continue statement applies to the innermost loops, unless it defines a loop label. In that case, it applies to the innermost loop defined with the same label.
+
+3. (Example)
+
+    ```val
+    var numbers: Array<Int> = []
+    outer:for let i in 1 to 3 {
+      for let j in 1 to 3 {
+        if j % i == 0 { continue outer }
+        numbers.append(j.copy())
+      }
+    }
+    ```
+
+    After executing these statements, `numbers` contains the sequence `1, 1, 2`.
+
+### 4.5.1. Do-while statments
+
+1. Do-while statements have the form:
+
+    ```ebnf
+    do-while-stmt ::=
+      'do' brace-stmt 'while' expr
+    ```
+
+2. The condition of a do-while loop must be an expression of type `Bool`. The condition is interpreted as though it was part of the scope delimited by the loop's body. The value of the condition is not consumed.
+
+3. (Example)
+
+    ```val
+    var counter = 0
+    do {
+      counter += 1
+      let x = counter
+    } while x < 3
+    ```
+
+    The binding `x` that occurring in the condition of the do-while loop is declared it its body.
+
+4. Control unconditionally enters the body of a do-while loop. The body is executed to completion before evaluating the end condition. If the condition evaluates to `true`, control exits and reenters at the beginning of the loop's body. Otherwise, it exits the loop.
+
+### 4.5.1. While statments
+
+1. While statements have the form:
+
+    ```ebnf
+    while-stmt ::=
+      'while' while-condition brace-stmt
+    
+    while-condition ::=
+      binding-decl
+      expr
+    ```
+
+2. A while loop introduces a lexical scope which is entered and exited each time through the loop. The brace statement of the loop introduces its own scope, nested in the loop's scope.
+
+3. Control enters the loop and tests for its condition. If the condition is satified, control enters the body of the loop, the body is executed to completion, and control jumps back to the beginning of the loop to start a new cycle. Control exists the loop the first time the condition is not satisfied.
+
+4. If the condition of a while-loop is a binding declaration, it is considered satisfied if and only if the value of the initializer matches the pattern. If the condition is an expression, it must be of type `Bool` and it is considierd satisfied if and only if it evaluates to `true`. The value of the condition is not consumed.
+
+### 4.5.2. For statements
+
+1. For statements have the form:
+
+    ```ebnf
+    for-stmt ::=
+      'for' for-binding-decl for-range loop-filter? brace-stmt
+
+    for-binding-decl ::=
+      binding-head binding-type-annotation?
+
+    for-range ::=
+      'in' expr
+
+    loop-filter ::=
+      'where' expr
+    ```
+
+2. (Example)
+
+    ```val
+    fun main() {
+      var things: Array<Any> = [1, "abc", 3, 2]
+      for inout x: Int in things where x < 3 {
+        x += 1
+      }
+      print(things) // [2, "abc", 3, 3]
+    }
+    ```
 
 # 5. Expressions
 
