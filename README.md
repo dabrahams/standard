@@ -42,11 +42,9 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     
     2. a sub-object of `o1` projects `o2`.
 
-3. When an object `o1` that projects an object `o2`, `o2` is said to be projected by o1`.
+3. When an object `o1` that projects an object `o2`, `o2` is said to be projected by o1`. [Note: Copying creates a new object that is not a projection.]
 
-4. (Note) Copying creates a new object that is not a projection.
-
-5. (Example)
+4. (Example)
 
     ```val
     type A { fun zero: Int { 0 } }
@@ -59,9 +57,9 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     }
     ```
 
-6. The object yielded by an accessor projects the arguments bound to the projection's out parameters.
+5. The object yielded by an accessor projects the arguments bound to the projection's out parameters.
 
-7. (Example)
+6. (Example)
 
     ```val
     fun min<T, E>(
@@ -82,13 +80,13 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
     The expression `min(x, y, by: comparator)` is a call to the `let` accessor of `min`, which projects the values of its first and second arguments, but not that of its third argument.
 
-8. A closure projects the objects it captures by projection.
+7. A closure projects the objects it captures by projection.
 
-9. An object projects the objects captured by the stored projections with which it has been initialized.
+8. An object projects the objects captured by the stored projections with which it has been initialized.
 
-10. If an object `o1` projects an object `o2` immutably, `o2` is immutable for the duration of `o1`'s lifetime. If an object `o1` projects an object `o2` mutably, `o2` is inaccessible for the duration of `o1`'s lifetime.
+9.  If an object `o1` projects an object `o2` immutably, `o2` is immutable for the duration of `o1`'s lifetime. If an object `o1` projects an object `o2` mutably, `o2` is inaccessible for the duration of `o1`'s lifetime.
 
-11. (Example) Mutable projection:
+10. (Example) Mutable projection:
 
     ```val
     fun main() {
@@ -100,7 +98,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     }
     ```
 
-12. (Example) Immutable projection:
+11. (Example) Immutable projection:
 
     ```val
     fun main() {
@@ -626,9 +624,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 2. Except as indicated, statements are executed in sequence.
 
-3. Statements do not require explicit statement delimiter. Semicolons can be used to separate statements explicitly, for legibility or to disambiguate exceptional situations.
-
-4. (Note) A common practice is to simply each statement on a new line.
+3. Statements do not require explicit statement delimiter. Semicolons can be used to separate statements explicitly, for legibility or to disambiguate exceptional situations. [Note: A common practice is to write each statement on a new line.]
 
 ## 4.2. Brace statements (a.k.a. code blocks)
 
@@ -863,8 +859,149 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 1. Continue statements skip the remainder of a loop body. Control is transferred to the begin of the loop.
 
-# 5. Expressions
+# 5. Value expressions
 
-## 5.1. Consuming expressions
+## 5.1. General
+
+1. An expression is a sequence of operators and operands that specifies a computation. An expression results in a value and may cause side effects.
+
+2. If during the evaluation of an expression, the result is not mathematically defined or not in the range of representable values for its type, the behavior is undefined.
+
+## 5.2. Properties of expressions
+
+### 5.2.1. Consuming expressions
 
 1. An expression is consuming if and only if its evaluation may end the lifetime of one or objects not created by the expression's evaluation.
+
+## 5.3. Primary expressions
+
+### 5.3.1. General
+
+1. Primary expressions have the form:
+
+    ```ebnf
+    primary-expr ::=
+      scalar-literal
+      compound-literal
+      ident
+      implicit-member-ref
+      capture-expr
+      lambda-expr
+      async-expr
+      await-expr
+      selection-expr
+      tuple-expr
+      'nil'
+      '_'
+    ```
+
+### 5.3.2. Scalar literals
+
+1. Scalar literals have the form:
+
+    ```ebnf
+    scalar-literal ::=
+      BOOL-LITERAL
+      INT-LITERAL
+      FLOAT-LITERAL
+      STRING-LITERAL
+    ```
+
+### 5.3.3. Compound literals
+
+#### General
+
+1. Compound literals have the form:
+
+    ```ebnf
+    compound-literal ::=
+      buffer-literal
+      map-literal
+    ```
+
+2. A compound literal consumes the value of each of its components.
+
+#### Buffer literals
+
+1. Buffer literals have the form:
+
+    ```ebnf
+    buffer-literal ::=
+      '[' buffer-component-list? ']'
+    
+    buffer-component-list ::=
+      expr (',' expr)* ','?
+    ```
+
+2. The type of a buffer literal is `T[n]`, where `n` is the number of components in the literal and `T` the type of all components. If a buffer literal appears in a typed context, `T` may be inferred from that context. Otherwise, the literal may not be empty, the type of `T` is inferred from the first component, and all other components must have the same type. The implementation may issue a warning if the literal has no component.
+
+3. (Example)
+
+    ```val
+    let a = []               // error: cannot infer empty buffer type without context
+    let b = [1, 2]           // OK, 'b' has type 'Int[2]'
+    let c = [1, 2.0]         // error: '2.0' does not have type 'Int'
+    let d: Double[] = [1, 2] // OK, 'd' has type 'Double[2]'
+    let e: Int[] = []        // warning: zero-lenght buffer
+    ```
+
+#### Map literal
+
+1. Map literals have the form:
+
+    ```ebnf
+    map-literal ::=
+      '[' map-literal-component-list ']'
+      '[' ':' ']'
+    
+    map-component-list ::=
+      map-component (',' map-component)* ','?
+  
+    map-component ::=
+      expr ':' expr
+    ```
+
+2. A map literal is said to be empty if it has the form `[:]`.
+
+3. The type of a map literal is `Map<Key, Value>`, where `Key` is the type of the map's keys and `Value` is the type of the map's values. If a map literal appears in a typed context, `Key` and `Value` may be inferred from that context. Otherwise, the literal may not be empty, the types of `Key` and `Value` are inferred from the first component, and all other components must have the same type.
+
+4. (Example)
+
+    ```val
+    let a = [:]                // error: cannot infer empty map type without context
+    let b = [1: "a", 2: "b"]   // OK, 'b' has type 'Map<Int, String>'
+    let c = [1: "a", 2.0: "b"] // error: '2.0' does not have type 'Int'
+    let d: Map<Double, String> = [1: "a", 2.0: "b"] // OK
+    let e: Map<Double, String> = [:] // OK
+    ```
+
+## 5.4. Function calls
+
+### 5.4.1. General
+
+1. Function calls have the form:
+
+    ```ebnf
+    call-expr ::=
+      expr '(' call-argument-list? ')'
+
+    call-argument-list ::=
+      call-argument ( ',' call-argument )*
+
+    call-argument :=
+      (IDENT ':')? expr
+    ```
+
+    The opening parenthesis preceding the call argument list must be on the same line as the callee.
+
+2. The kind of the call expression depends on its callee:
+
+    1. if the callee is a type expression, the call expression is an initializer call; or
+
+    2. if the callee is a value member expression, the call expression is a method call; or
+
+    3. if the callee is a type member expression referring to a function declaration, the call expression is a static method call; or
+
+    4. otherwise, the call expression is a function call.
+
+3. Arguments to `sink` parameters are consumed. Arguments to `let` parameters are projected immutably in the entire call expression. Arguments to `inout` and `set` parameters are projected mutably in the entire call expression.
