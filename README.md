@@ -406,7 +406,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     }
     ```
 
-### 3.4.3. Method declarations
+### 3.4.4. Method declarations
 
 1. A bodiless method declaration or a method declaration that contains a bodiless method implementation defines a trait method requirement and may only appear at trait scope. A bodiless static method declaration defines a static trait method requirement and may only appear at trait scope.
 
@@ -450,7 +450,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
     The method `Vector2.scaled(by:)` has an explicit `let` implementation, an explicit `inout` implementation and a synthesized `sink` implementation. The method `Vector2.dot(_:)` has an implicit `let` implementation. The method `Vector2.transpose` has an implicit `inout` implementation.
 
-### 3.4.4. Method implementations
+### 3.4.5. Method implementations
 
 1. A method implementation is a function implementation defined in a method. It may be defined implicitly or explicitly (see Method declarations). Explicit method implementations have the form:
 
@@ -618,12 +618,8 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     ```ebnf
     stmt ::=
       brace-stmt
-      return-stmt
-      yield-stmt
-      for-stmt
       loop-stmt
-      continue-stmt
-      break-stmt
+      jump-stmt
       decl
       expr
     ```
@@ -650,53 +646,13 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 3. The statements contained in a brace statements are called its sub-statements.
 
-## 4.3 Return statments
+4. Control enters the lexical scope of a brace statement before executing any sub-statements and exits that lexical scope when it reaches the end of the brace statement.
 
-1. Return statements return an object from a function, terminating the execution path and transferring control back to the function's caller.
+## 4.3. Loop statments
 
-2. Return statements have the form:
+### 4.3.1. General
 
-    ```ebnf
-    'return' expr?
-    ```
-
-3.  The expression in a return statement is called its operand. If the operand is omitted, it is interpreted as `()`. A return statement consumes the value of the operand to initialize an escapable object as result of the call to the containing function.
-
-## 4.4 Yield statments
-
-1. Yield statements project an object out of a subscript, suspending the execution path and temporarily transferring control to the subscript's caller. Control comes back to the subscript once after the last use of the yielded projection at the call site, resuming execution at the statement that directly follows the yield statement.
-
-2. (Example)
-
-    ```val
-    subscript element<T>(at: index, in array: Array<T>): T {
-      print("will yield")
-      yield array[position]
-      if a > b { yield a } else { yield b }
-      print("did yield")
-    }
-
-    fun main() {
-      let fruits = ["apple", "mango", "orange"]
-      let f = element(at: 1, in: fruits) // "will yield"
-      print("foo")                       // "foo"
-      print(f)                           // "mango"
-                                         // "did yield"
-      print("bar")                       // "bar"
-    }
-    ```
-
-3. Yield statements have the form:
-
-    ```ebnf
-    'yield' expr
-    ```
-
-4. The expression in a yield statement is called its operand. A yield statement projects the value of its operand as the result of the call to the containing subscript. The yielded object is projected immutably in a `let` subscript implementation and mutably in an `inout` subscript implementation. The mutability marker `&` must prefix a mutable projection.
-
-## 4.5 Loop statments
-
-1. Loop statements have the form:
+1. Loop statements describe iteration. They have the form:
 
     ```ebnf
     loop-stmt ::=
@@ -708,32 +664,22 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
       IDENT ':'
     ```
 
-2. A break or a continue statement applies to the innermost loops, unless it defines a loop label. In that case, it applies to the innermost loop defined with the same label.
+2. A loop statement introduces a lexical scope. The body of a loop is a brace statement lexically nested inside the loop's scope.
 
-3. (Example)
+3. A loop has three control entry points: a head, a body, and a tail. Control enters a loop from its head. The head belongs to the loop scope and the tail belongs to the body's scope. When a loop statement is executed, control is transferred to its head, entering the loop's scope. If control reaches the end of a loop's body, it is unconditionally transferred to its tail. The body's scope and then the loop's scope are exited when control exits the tail, whether or not it is transferred back to the head.
 
-    ```val
-    var numbers: Array<Int> = []
-    outer:for let i in 1 to 3 {
-      for let j in 1 to 3 {
-        if j % i == 0 { continue outer }
-        numbers.append(j.copy())
-      }
-    }
-    ```
+4. A continuation test is a procedure that determines whether an additional iteration should take place, or whether control should exit the loop. A continuation test may take in the head or in the body of a loop.
 
-    After executing these statements, `numbers` contains the sequence `1, 1, 2`.
+### 4.3.2. Do-while statments
 
-### 4.5.1. Do-while statments
-
-1. Do-while statements have the form:
+1. `do-while` statements have the form:
 
     ```ebnf
     do-while-stmt ::=
       'do' brace-stmt 'while' expr
     ```
 
-2. The condition of a do-while loop must be an expression of type `Bool`. The condition is interpreted as though it was part of the scope delimited by the loop's body. The value of the condition is not consumed.
+2. The condition of a `do-while` statement belongs to the tail of the loop. It must be an expression of type `Bool`, which is evaluated by each continuation test. The test succeeds if the condition evaluates to `true`. That value is not consumed.
 
 3. (Example)
 
@@ -745,32 +691,33 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     } while x < 3
     ```
 
-    The binding `x` that occurring in the condition of the do-while loop is declared it its body.
+    The binding `x` that occurring in the condition of the `do-while` statement is declared it its body.
 
-4. Control unconditionally enters the body of a do-while loop. The body is executed to completion before evaluating the end condition. If the condition evaluates to `true`, control exits and reenters at the beginning of the loop's body. Otherwise, it exits the loop.
+4. The head of a `do-while` statement unconditionally transfers control to the body of the loop. The tail performs a continuation test. If it succeeds, control is transferred back to the head. Otherwise, it exits the loop.
 
-### 4.5.1. While statments
+### 4.3.3. While statments
 
-1. While statements have the form:
+1. `while` statements have the form:
 
     ```ebnf
     while-stmt ::=
-      'while' while-condition brace-stmt
+      'while' while-condition-list brace-stmt
     
-    while-condition ::=
+    while-condition-list ::=
+      while-condition-item (',' while-condition)*
+
+    while-condition-item ::=
       binding-decl
       expr
     ```
 
-2. A while loop introduces a lexical scope which is entered and exited each time through the loop. The brace statement of the loop introduces its own scope, nested in the loop's scope.
+2. The condition of a `while` belongs to the head of the loop. It is a non-empty sequence of condition items. A condition item that is a binding declaration is considered satisfied if and only if the value of the initializer matches the pattern and can initialize its new bindings. A condition item that is an expression must be of type `Bool` and is considierd satisfied if and only if it evaluates to `true`. That value is not consumed. If the condition contains more than a single item, the n+1th item is evaluated if and only if the nth item is satisfied. The continuation test succeeds if and only if all items are satisfied.
 
-3. Control enters the loop and tests for its condition. If the condition is satified, control enters the body of the loop, the body is executed to completion, and control jumps back to the beginning of the loop to start a new cycle. Control exists the loop the first time the condition is not satisfied.
+3. The head of a `while` statement performs a continuation test. If it succeeds, control is transferred to the body of the loop. Otherwise, it exits the loop. The tail unconditionally transfers control back to the head.
 
-4. If the condition of a while-loop is a binding declaration, it is considered satisfied if and only if the value of the initializer matches the pattern. If the condition is an expression, it must be of type `Bool` and it is considierd satisfied if and only if it evaluates to `true`. The value of the condition is not consumed.
+### 4.3.4. For statements
 
-### 4.5.2. For statements
-
-1. For statements have the form:
+1. `for` statements have the form:
 
     ```ebnf
     for-stmt ::=
@@ -797,6 +744,124 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
       print(things) // [2, "abc", 3, 3]
     }
     ```
+
+3. The binding declaration and the filter expression of a `for` statement belong to the head of the loop. The range of a `for` statement belongs to the lexical scope in which that statement is defined.
+
+4. (Example)
+
+    ```val
+    fun main() {
+      for let x in 0 until x { print(x) }
+    }
+    ```
+
+    This program is ill-typed. The range is referring to a binding introduced in the loop binding.
+
+5. The range must be an expression of a type that conforms to the `Iterable` trait. When a `for` statement is executed, an iterator object `it` is produced by calling `make_iterator` on the object evaluated by the loop range. The continuation test consists of verifying that `it.next()` does not result in a `nil` object. The loop iterates over all elements produced by the iterator, unless it is exited early via a break or a return statement.
+
+6. The head of a `for` statement performs a continuation test. If it fails, control exits the loop. Otherwise, it tests whether the latest object projected by the loop's iterator matches the pattern of the binding declaration and can initialize its new bindings. If and only if it does, the loop filter is evaluated. If and only if the filter evaluates to `true`, control enters the body of the loop. The value of the filter is not consumed. If either the pattern of the binding declaration does not match, or the filter is not satisfied, control is transferred back the head.
+
+7.  (Example)
+
+    ```val
+    fun main() {
+      var things: Array<Any> = [1, "abc", 3, 2]
+      for inout x: Int in things where x < 3 {
+        x += 1
+      }
+      print(things) // [2, "abc", 3, 3]
+    }
+    ```
+
+    This program can be understood as though it had be written:
+
+    ```val
+    fun main() {
+      var things: Array<Any> = [1, "abc", 3, 2]
+      var iterator = things.make_iterator()
+      while true {
+        if inout x: Int = iterator.next() where x < 3 {
+          x += 1
+        } else {
+          break
+        }
+      }
+      print(things) // [2, "abc", 3, 3]
+    }
+    ```
+
+## 4.4. Jump statements
+
+### 4.4.1. General
+
+1. Jump statements unconditionally transfer control. They have the form:
+
+    ```ebnf
+    jump-stmt ::=
+      'return' expr?
+      'yield' expr
+      'break' jump-stmt-label?
+      'continue' jump-stmt-label?
+
+    jump-stmt-label ::=
+      IDENT
+    ```
+
+2. `break` and `continue` statements are called loop jump statements. A loop jump statement applies to the innermost loop unless it defines a loop label. In that case, it applies to the innermost loop defined with the same label.
+
+3. (Example)
+
+    ```val
+    var numbers: Array<Int> = []
+    outer:for let i in 1 to 3 {
+      for let j in 1 to 3 {
+        if j % i == 0 { continue outer }
+        numbers.append(j.copy())
+      }
+    }
+    ```
+
+    After executing these statements, `numbers` contains the sequence `1, 1, 2`.
+
+### 4.4.2. Return statments
+
+1. Return statements return an object from a function, terminating the execution path and transferring control back to the function's caller.
+
+2.  The expression in a return statement is called its operand. If the operand is omitted, it is interpreted as `()`. A return statement consumes the value of the operand to initialize an escapable object as result of the call to the containing function.
+
+### 4.4.3. Yield statments
+
+1. Yield statements project an object out of a subscript, suspending the execution path and temporarily transferring control to the subscript's caller. Control comes back to the subscript once after the last use of the yielded projection at the call site, resuming execution at the statement that directly follows the yield statement.
+
+2. (Example)
+
+    ```val
+    subscript element<T>(at: index, in array: Array<T>): T {
+      print("will yield")
+      yield array[position]
+      if a > b { yield a } else { yield b }
+      print("did yield")
+    }
+
+    fun main() {
+      let fruits = ["apple", "mango", "orange"]
+      let f = element(at: 1, in: fruits) // "will yield"
+      print("foo")                       // "foo"
+      print(f)                           // "mango"
+                                         // "did yield"
+      print("bar")                       // "bar"
+    }
+    ```
+
+3. The expression in a yield statement is called its operand. A yield statement projects the value of its operand as the result of the call to the containing subscript. The yielded object is projected immutably in a `let` subscript implementation and mutably in an `inout` subscript implementation. The mutability marker `&` must prefix a mutable projection.
+
+### 4.4.4. Break statements
+
+1. Break statements exit a loop. Control is transferred to the statement immediately following the loop, if any.
+
+### 4.4.5. Continue statements
+
+1. Continue statements skip the remainder of a loop body. Control is transferred to the begin of the loop.
 
 # 5. Expressions
 
