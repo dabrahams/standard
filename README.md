@@ -294,9 +294,11 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 2. The lexical scope of a module or namespace declaration is called a *global scope*. The lexical scope of a type or extension declaration is called a *type scope*. The lexical scope of any other syntactic element is called a *local scope*.
 
-3. A declaration space is a set of names introduced in one or multiple related lexical scopes. The declaration space of a module or namespace declaration includes all names introduced in the lexical scope of that declaration. The declaration space of a type declaration includes all names introduced in the lexical scope of that declaration and all names introduced in the lexical scopes of the extensions of the declared type. The declaration space of an extension declaration is the same as the declaration space of the extended type. The declaration space of any other syntactic element is the set of names introduced in the lexical scope of that element.
+3. A lexical scope `ls1` *contains* a lexical scope `ls2` if the region of the program text delimited by `ls1` includes that delimited by `ls2`.
 
-4. (Example)
+4. A declaration space is a set of names introduced in one or multiple related lexical scopes. The declaration space of a module or namespace declaration includes all names introduced in the lexical scope of that declaration. The declaration space of a type declaration includes all names introduced in the lexical scope of that declaration and all names introduced in the lexical scopes of the extensions of the declared type. The declaration space of an extension declaration is the same as the declaration space of the extended type. The declaration space of any other syntactic element is the set of names introduced in the lexical scope of that element.
+
+5. (Example)
 
     ```ebnf
     type A {
@@ -309,7 +311,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
     The declarations space of the type declaration includes `foo` and `bar`.
 
-5. A declaration may introduce one or more names, or redeclare names introduced by previous declarations in the innermost lexical scope that contains it. The same name may not be introduced more than once in a declaration space.
+6. A declaration may introduce one or more names, or redeclare names introduced by previous declarations in the innermost lexical scope that contains it. The same name may not be introduced more than once in a declaration space.
 
     ```ebnf
     type A {
@@ -319,6 +321,36 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
       fun foo() {} // error: invalid redeclaration of 'foo'
     }
     ```
+
+## 3.3. Name lookup
+
+1. The procedure that identifies the entity denoted by a name is called *name lookup*. The rules of name lookup apply uniformly to all names.
+
+2. Name lookup succeeds if and only if the procedure identfies a single entity.
+
+3. Access rules are considered only once name lookup has succeeded.
+
+### 3.3.1. Unqualified name lookup
+
+1. Unqualified name lookup for a name `n` from a lexical scope `ls` is described as follows:
+
+    - The looked up name is searched with a qualified lookup into `ls`.
+
+    - If the qualified lookup returns an entity `e` and:
+    
+        - If `e` is a local binding and `n` occurs after the declaration of `e` in the program text, the search succeeds and returns `e`.
+      
+        - If `e` is a local function without captures, the search succeeds and returns `e`.
+
+        - If `e` is a local function with captures and `n` occurs after the declaration of `e` in the program text, the search succeeds and returns `e`.
+
+    - Otherwise:
+
+        - If `ls` is not the lexical scope of a module declaration, the search returns the result of an unqualified lookup from the innermost scope that contains `ls`.
+
+        - If `ls` is the lexical scope of a module declaration other than the Val standard library, the search returns the result of an unqualified lookup from the module declaration of the Val standard library.
+
+        - If `ls` is the lexical scope of the Val standard library, the search fails.
 
 ## 3.4. Objects
 
@@ -354,7 +386,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     
     2. a sub-object of `o1` projects `o2`.
 
-3. When an object `o1` that projects an object `o2`, `o2` is said to be projected by o1`. [Note: Copying creates a new object that is not a projection.]
+3. When an object `o1` projects an object `o2`, `o2` is said to be projected by o1`. [Note: Copying creates a new object that is not a projection.]
 
 4. (Example)
 
