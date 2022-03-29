@@ -12,35 +12,37 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 1. A Val program is written in text format. The text of a program is written using the [Unicode](https://home.unicode.org) character set and kept in units called source files. A source file is a sequence of Unicode characters represented with the UTF-8 encoding.
 
-2. This document refers to Unicode characters with the notation `U+n` where `n` is an hexadecimal value representing a Unicode code point.
+2. This document refers to individual Unicode characters with the notation `U+n` where `n` is an hexadecimal value representing a Unicode code point, and refers to the Unicode general categories to identify groups of Unicode characters.
 
 ## 2.2. Lexical translations
-
-1. A source file is translated into a sequence of tokens using the following translation steps, in order:
     
-    1. The sequence of Unicode characters is translated to a sequence of raw characters, inline spaces, and new-line delimiters. Inline spaces are recognized as contiguous sequences of `U+9` and/or `U+20`. New-line delimiters are recognized as `U+A`, `U+D`, and the `U+D` directly followed by `U+A`. Any other character is recognized as an raw character.
+1. An sequence of Unicode characters is translated to a sequence of tokens, which are the terminal symbols of the syntactic grammar. The following riles apply during the translation:
 
-    2. Comments are substituted by inline spaces from the sequence of raw characters, inline spaces and new-line delimiters obtained from step 1, resulting in a sequence of input elements.
+    1. Comments are ignored and treated as though they were substituted by a single space `U+20`.
     
-    3. The sequence of input elements obtained from step 2 is translated to a sequence of raw tokens, which are the terminal symbols of the syntactic grammar.
+    2. Inline spaces are ignored, unless they appear between the opening and closing delimiters of a character or string literal. Inline spaces are recognized as `U+9` and/or `U+20`.
+
+    3. New-line delimiters are ignored, unless they appear between the opening and closing delimiters of a character or string literal. New-line delimiters are recognized as `U+A`, and/or `U+D`, and/or the `U+D` directly followed by `U+A`.
 
 ## 2.3. Comments
 
 1. The characters `//` start a single-line comment, which terminates immediately before the next new-line delimiter.
 
-2. The characters `/*` denote a comment opening delimiter and the characters `*/` denote a comment closing delimiter. An opening comment delimiter starts a multi-line comment, which terminates after a matching closing delimiter. Each opening delimiter must have a matching closing delimiter. Multi-line comments may nest.
+2. The characters `/*` denote a comment opening delimiter and the characters `*/` denote a comment closing delimiter. An opening comment delimiter starts a multiline comment, which terminates after a matching closing delimiter. Each opening delimiter must have a matching closing delimiter. Multiline comments may nest.
 
-3. The characters `//` have no special meaning in a multi-line comment. The characters `/*` and `*/` have no special meaning in a single-line comment.
+3. The characters `//` have no special meaning in a multiline comment. The characters `/*` and `*/` have no special meaning in a single-line comment. The characters `//` and `/*` have no special meaning in a string literal. Conversely, string opening delimiters have no special meaning in a comment.
 
-## 2.4. Raw tokens
+## 2.4. Tokens
 
-1. A raw token is a terminal symbol of the syntactic grammar. It falls into one of five categories: scalar literals, keywords, identifiers, operators, and punctuators.
+1. A token is a terminal symbol of the syntactic grammar. It falls into one of five categories: scalar literals, keywords, raw identifiers, raw operators, and punctuators.
 
-2. A raw token is associated with a tag that indicates whether it was followed by raw character, an inline space or a new-line delimiter in the sequence from step 1 of the lexical translation.
+2. A token is associated with a three-valued flag specifying whether it was followed by a raw character, an inline space (including an inline space substituted for a comment), or a new-line delimiter in the sequence of Unicode characters.
 
 3. (Example)
 
-    The input "a << b" is translated to a sequence of 4 raw tokens: an identifier, two operators, and an identifier. The first and third tokens are known to be followed by an inline space.
+    The input "a << b" is translated to a sequence of 4 tokens: *identifier*, *operator*, *operator*, *identifier*. The first and third tokens are known to be followed by an inline space.
+
+4. Unless otherwise specified, tokens are recognized using the longest possible sequence of characters.
 
 ### 2.4.1. Scalar literals
 
@@ -56,7 +58,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 #### 2.4.1.2. Integer literals
 
-1. Integer literals are recognized by the following grammar:
+1. Integer literals have the form:
 
     ```ebnf
     integer-literal ::=
@@ -116,7 +118,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 #### 2.4.1.3. Floating-point literals
 
-1. Floating-point literals are recognized by the following grammar:
+1. Floating-point literals have the form:
 
     ```ebnf
     floating-point-literal ::=
@@ -155,7 +157,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 #### 2.4.1.4. Character literals
 
-1. Character literals are recognized by the following grammar:
+1. Character literals have the form:
 
     ```ebnf
     character-literal ::=
@@ -172,14 +174,14 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     unicode-escape ::=
       \u hexadecimal-digit
     
-    c-char ::= (any unicode character except U+27)
+    c-char ::= (any unicode character except ')
     ```
 
 2. The *hexadecimal-digit*  of a *unicode-escape* represents a Unicode code point.
 
 #### 2.4.1.5. String literals
 
-1. String literals are recognized by the following grammar:
+1. String literals have the form:
 
     ```ebnf
     string-literal ::=
@@ -197,7 +199,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
       escape-char
       s-char
 
-    s-char ::= (any unicode character except U+22, U+A, and U+D)
+    s-char ::= (any character except ", U+A, and U+D)
 
     multiline-string ::=
       """ multiline-quoted-text """
@@ -210,7 +212,68 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
       escape-char
       m-char
 
-    m-char ::= (any unicode character except U+22 leading a sequence of 3 or more contiguous U+22)
+    m-char ::= (any character except " leading a sequence of 3 or more contiguous ")
+    ```
+
+2. The first new-line delimiter in a multiline string literal is not part of the value of that literal if it immediately succeeds the opening delimiter. The last new-line delimiter that is succeeded by a contiguous sequence of inline spaces followed by the closing delimiter is called the indentation marker. The indentation marker and the succeeding inline spaces specify the indentation pattern of the literal and are not part of its value. The pattern is defined as the sequence of inline spaces between the indentation marker and the closing delimiter. That sequence must be homogeneous. If the literal has no indentation marker, its indentation pattern is an empty sequence. Each line of a multiline string literal must begin with the indentation pattern of that literal. That prefix is not part of the value of the literal.
+
+3. (Example)
+
+    ```val
+    let s = """
+        Hello,
+        World!
+      """
+    print(s) // "  Hello,\n  World!"
+    ```
+
+### 2.4.2. Keyowrds
+
+1. A keywords are reserved identifiers. They have the form:
+
+    ```ebnf
+    keyword ::= (one of)
+      Any Never as as! _as!! async await break catch continue deinit else extension false for fun
+      if import in infix init let match namespace nil postfix prefix private public return sink static true try type typealias var where while yield
+    ```
+
+### 2.4.3. Raw identifiers
+
+1. Raw identifiers are case-sensitive sequences of letters and digits. They have the form:
+
+    ```ebnf
+    raw-identifier ::=
+      raw-identifier-head
+      raw-identifier raw-identifier-tail
+      contextual-keyword
+
+    raw-identifier-head ::= (_ and any character in categories Lu, Ll, Lt, Lm, Lo, Nl)
+
+    raw-identifier-tail ::= (any character in categories Lu, Ll, Lt, Lm, Lo, Mn, Mc, Nl, Nd, Pc)
+
+    contextual-keyword ::= (one of)
+      mutating some
+    ```
+
+2. Contextual keywords are identifiers that have a special meaning when appearing in a certain context. When referred to in the grammar, these identifiers are used explicitly rather than using the identifier grammar production. Unless otherwise specified, any ambiguity as to whether a given identifier has a special meaning is resolved to interpret the token as a regular identifier.
+
+### Raw operators
+
+1. Raw operators have the form:
+
+    ```ebnf
+    raw-operator ::= (-, *, /, ^, %, &, ! ?, and any character in category Sm)
+    ```
+
+    [Note: The Unicode category Sm include +, =, <, >, |, and ~.]
+
+### Punctuators
+
+1. Punctuators have the form:
+
+    ```ebnf
+    punctuator ::= (any of)
+      . , ; ( ) [ ] { } : ::
     ```
 
 # 3. General concepts
