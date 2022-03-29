@@ -40,7 +40,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 3. (Example)
 
-    The input "a << b" is translated to a sequence of 4 tokens: *identifier*, *operator*, *operator*, *identifier*. The first and third tokens are known to be followed by an inline space.
+    The input "a << b" is translated to a sequence of 4 tokens: __raw-identifier__, __raw-operator__, __raw-operator__, __raw-identifier__. The first and third tokens are known to be followed by an inline space.
 
 4. Unless otherwise specified, tokens are recognized using the longest possible sequence of characters.
 
@@ -151,7 +151,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
       + -
     ```
 
-2. The significand of a decimal floating-point literal the *decimal-fractional-constant* or the *decimal-literal* preceeding the *exponent*. The signficand of an hexadecimal floating-point literal is the *hexadecimal-fractional-constant* or the *hexadecimal-literal*. In the significand, the digits and optional period are interpreted as a base `N` real number `s`, where `N` is 10 for a decimal floating-point literal and 16 for an hexadecimal floating-point literal, ignoring all occurences of `_`. If *exponent* or *binary-exponent* is present, the exponent `e` of the floating-point-literal is the result of interpreting the sequence of an optional `sign` and the digits as a base 10 integer. Otherwise, the exponent `e` is 0. The scaled value of the literal is `s × 10e` for a decimal floating-point literal and `s × 2e` for a hexadecimal floating-point literal.
+2. The significand of a decimal floating-point literal the __decimal-fractional-constant__ or the __decimal-literal__ preceeding the __exponent__. The signficand of an hexadecimal floating-point literal is the __hexadecimal-fractional-constant__ or the __hexadecimal-literal__. In the significand, the digits and optional period are interpreted as a base `N` real number `s`, where `N` is 10 for a decimal floating-point literal and 16 for an hexadecimal floating-point literal, ignoring all occurences of `_`. If __exponent__ or __binary-exponent__ is present, the exponent `e` of the floating-point-literal is the result of interpreting the sequence of an optional `sign` and the digits as a base 10 integer. Otherwise, the exponent `e` is 0. The scaled value of the literal is `s × 10e` for a decimal floating-point literal and `s × 2e` for a hexadecimal floating-point literal.
 
 3. The default inferred type of an integer literal is the Val standard library `Double`, which represents a 64-bit floating point number. If the interpreted value of a floating-point literal is not in the range of representable values for its type, the program is ill-formed. Otherwise, the value of a floating-point literal is the scaled value if representable, else the larger or smaller representable value nearest the scaled value, chosen in an implementation-defined manner.
 
@@ -177,7 +177,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     c-char ::= (any unicode character except ')
     ```
 
-2. The *hexadecimal-digit*  of a *unicode-escape* represents a Unicode code point.
+2. The __hexadecimal-digit__  of a __unicode-escape__ represents a Unicode code point.
 
 #### 2.4.1.5. String literals
 
@@ -257,7 +257,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 2. Contextual keywords are identifiers that have a special meaning when appearing in a certain context. When referred to in the grammar, these identifiers are used explicitly rather than using the identifier grammar production. Unless otherwise specified, any ambiguity as to whether a given identifier has a special meaning is resolved to interpret the token as a regular identifier.
 
-### Raw operators
+### 2.4.4. Raw operators
 
 1. Raw operators have the form:
 
@@ -267,7 +267,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
     [Note: The Unicode category Sm include +, =, <, >, |, and ~.]
 
-### Punctuators
+### 2.4.5. Punctuators
 
 1. Punctuators have the form:
 
@@ -278,7 +278,49 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 # 3. General concepts
 
-## 3.1. Objects
+## 3.1. Preamble
+
+1. An *entity* is an object, projection, function, subscript, type, namespace, or module.
+
+2. A *name* is an expression that denotes an entity. Every name is introduced by a __decl__.
+
+3. A *binding* is a name that denotes an object or a projection. The value of a binding is the denoted object or the value of the denoted projection. A binding may be mutable or immutable. A mutable binding can modify its value or be reassigned to another entity. An immutable binding cannot.
+
+4. An __ident-expr__ is said to be a *use* of the name to which it refers. An expression is said to be a use of the all the uses of its sub-expressions.
+
+## 3.2. Scopes and declaration spaces
+
+1. A *lexical scope* is a region of the program text delimited by a syntactic element.
+
+2. The lexical scope of a module or namespace declaration is called a *global scope*. The lexical scope of a type or extension declaration is called a *type scope*. The lexical scope of any other syntactic element is called a *local scope*.
+
+3. A declaration space is a set of names introduced in one or multiple related lexical scopes. The declaration space of a module or namespace declaration includes all names introduced in the lexical scope of that declaration. The declaration space of a type declaration includes all names introduced in the lexical scope of that declaration and all names introduced in the lexical scopes of the extensions of the declared type. The declaration space of an extension declaration is the same as the declaration space of the extended type. The declaration space of any other syntactic element is the set of names introduced in the lexical scope of that element.
+
+4. (Example)
+
+    ```ebnf
+    type A {
+      fun foo() {}
+    }
+    extension A {
+      fun bar() {}
+    }
+    ```
+
+    The declarations space of the type declaration includes `foo` and `bar`.
+
+5. A declaration may introduce one or more names, or redeclare names introduced by previous declarations in the innermost lexical scope that contains it. The same name may not be introduced more than once in a declaration space.
+
+    ```ebnf
+    type A {
+      fun foo() {}
+    }
+    extension A {
+      fun foo() {} // error: invalid redeclaration of 'foo'
+    }
+    ```
+
+## 3.4. Objects
 
 1. An object is the result of a scalar literal expression, the result of an aggregate literal expression, the result of a function call, the result of a call to a `sink` accessor, or the value of an escapable binding.
 
@@ -288,7 +330,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 4. An object occupies a region of storage in its period of construction, throughout its lifetime, and in its period of destruction. The size of that region of storage is defined at compile-type by the type of the object.
 
-### 3.1.1. Object lifetimes
+### 3.4.1. Object lifetimes
 
 1. The lifetime of an object of type `T` begins when:
    
@@ -302,7 +344,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     
     2. the storage which the object occupies is released, or is reused by another object.
 
-## 3.2. Projections
+## 3.5. Projections
 
 1. A projection exposes an existing object.
 
@@ -380,7 +422,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     }
     ```
 
-## 3.3. Sinkability
+## 3.6. Sinkability
 
 1. A stored projection is unsinkable.
 
@@ -399,7 +441,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     }
     ```
 
-## 3.4. Escapability
+## 3.7. Escapability
 
 1. A sinkable object evaluated by a non-consuming expression is escapable at a given program point if it is not projected by any other object at that program point.
 
@@ -930,12 +972,9 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
     ```ebnf
     loop-stmt ::=
-      loop-label? do-while-stmt
-      loop-label? while-stmt
-      loop-label? for-stmt
-
-    loop-label ::=
-      IDENT ':'
+      do-while-stmt
+      while-stmt
+      for-stmt
     ```
 
 2. A loop statement introduces a lexical scope. The body of a loop is a brace statement lexically nested inside the loop's scope.
@@ -1081,21 +1120,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
       IDENT
     ```
 
-2. `break` and `continue` statements are called loop jump statements. A loop jump statement applies to the innermost loop unless it defines a loop label. In that case, it applies to the innermost loop defined with the same label.
-
-3. (Example)
-
-    ```val
-    var numbers: Array<Int> = []
-    outer:for let i in 1 to 3 {
-      for let j in 1 to 3 {
-        if j % i == 0 { continue outer }
-        numbers.append(j.copy())
-      }
-    }
-    ```
-
-    After executing these statements, `numbers` contains the sequence `1, 1, 2`.
+2. `break` and `continue` statements are called loop jump statements. A loop jump statement applies to the innermost loop.
 
 ### 5.4.2. Return statments
 
