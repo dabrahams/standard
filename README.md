@@ -6,9 +6,216 @@ Val is strongly related to the [Swift programming language](https://www.swift.or
 
 On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.31.5002&rep=rep1&type=pdf), ownership types [(Clarke et al. 2013)](https://doi.org/10.1007/978-3-642-36946-9_3), and capability-based type systems [(Smith et al. 2000)](https://doi.org/10.1007/3-540-46425-5_24), while striving to hide the complexity inherent to these approaches. It does so by excluding first-class references from the user model and using continuations to mitigate the loss of expressiveness.
 
-# 2. General concepts
+# 2. Lexical conventions
 
-## 2.1. Objects
+## 2.1. Program text
+
+1. A Val program is written in text format. The text of a program is written using the [Unicode](https://home.unicode.org) character set and kept in units called source files. A source file is a sequence of Unicode characters represented with the UTF-8 encoding.
+
+2. This document refers to Unicode characters with the notation `U+n` where `n` is an hexadecimal value representing a Unicode code point.
+
+## 2.2. Lexical translations
+
+1. A source file is translated into a sequence of tokens using the following translation steps, in order:
+    
+    1. The sequence of Unicode characters is translated to a sequence of raw characters, inline spaces, and new-line delimiters. Inline spaces are recognized as contiguous sequences of `U+9` and/or `U+20`. New-line delimiters are recognized as `U+A`, `U+D`, and the `U+D` directly followed by `U+A`. Any other character is recognized as an raw character.
+
+    2. Comments are substituted by inline spaces from the sequence of raw characters, inline spaces and new-line delimiters obtained from step 1, resulting in a sequence of input elements.
+    
+    3. The sequence of input elements obtained from step 2 is translated to a sequence of raw tokens, which are the terminal symbols of the syntactic grammar.
+
+## 2.3. Comments
+
+1. The characters `//` start a single-line comment, which terminates immediately before the next new-line delimiter.
+
+2. The characters `/*` denote a comment opening delimiter and the characters `*/` denote a comment closing delimiter. An opening comment delimiter starts a multi-line comment, which terminates after a matching closing delimiter. Each opening delimiter must have a matching closing delimiter. Multi-line comments may nest.
+
+3. The characters `//` have no special meaning in a multi-line comment. The characters `/*` and `*/` have no special meaning in a single-line comment.
+
+## 2.4. Raw tokens
+
+1. A raw token is a terminal symbol of the syntactic grammar. It falls into one of five categories: scalar literals, keywords, identifiers, operators, and punctuators.
+
+2. A raw token is associated with a tag that indicates whether it was followed by raw character, an inline space or a new-line delimiter in the sequence from step 1 of the lexical translation.
+
+3. (Example)
+
+    The input "a << b" is translated to a sequence of 4 raw tokens: an identifier, two operators, and an identifier. The first and third tokens are known to be followed by an inline space.
+
+### 2.4.1. Scalar literals
+
+#### 2.4.1.1. Boolean literals
+
+1. The Boolean literals are the keywords `true` and `false`:
+
+    ```ebnf
+    boolean-literal ::=
+      true
+      false
+    ```
+
+#### 2.4.1.2. Integer literals
+
+1. Integer literals are recognized by the following grammar:
+
+    ```ebnf
+    integer-literal ::=
+      binary-literal
+      octal-literal
+      decimal-litera
+      hexadecimal-literal
+
+    binary-literal ::=
+      0b binary-digit
+      0b _
+      binary-literal binary-digit
+      binary-literal _
+
+    binary-digit ::= (one of)
+      0 1
+
+    octal-literal ::=
+      0o octal-digit
+      0o _
+      octal-literal octal-digit
+      octal-literal _
+
+    octal-digit ::= (one of)
+      0 1 2 3 4 5 6 7
+
+    decimal-literal ::=
+      decimal-digit
+      decimal-literal decimal-digit
+      decimal-literal _
+
+    hexadecimal-literal
+      0x hexadecimal-digit
+      0x _
+      hexadecimal-literal hexadecimal-digit
+      hexadecimal-literal _
+
+    hexadecimal-digit ::= (one of)
+      0 1 2 3 4 5 6 7 8 9 a A b B c C d D e E f F
+    ```
+
+2. The sequence of digits of a literal are interpreted as follows, ignoring all occurences of `_`:
+
+    1. In a binary literal, as a base 2 integer.
+   
+    2. In an octal literal, as a base 8 integer.
+
+    3. In a decimal literal, as a base 10 integer.
+    
+    4. In an hexadecimal literal, as a base 16 integer, where the characters `a` through `f` and `A` through `F` have decimal values ten through fifteen.
+
+3. (Example)
+
+    The integer literal `0o12_34_5__` is interpreted as the integer `5349` in base 10.
+
+4. The default inferred type of an integer literal is the Val standard library `Int`, which represents a 64-bit signed integer. If the interpreted value of an integer literal is not in the range of representable values for its type, the program is ill-formed.
+
+#### 2.4.1.3. Floating-point literals
+
+1. Floating-point literals are recognized by the following grammar:
+
+    ```ebnf
+    floating-point-literal ::=
+      decimal-floating-point-literal
+      hexadecimal-floating-point-literal
+
+    decimal-floating-point-literal ::=
+      decimal-fractional-constant exponent?
+      decimal-literal exponent
+
+    decimal-fractional-constant ::=
+      decimal-literal . decimal-literal
+
+    exponent ::=
+      e exponent-sign? decimal-literal
+      E exponent-sign? decimal-literal
+
+    hexadecimal-floating-point-literal ::=
+      hexadecimal-fractional-constant binary-exponent
+      hexadecimal-literal binary-exponent
+
+    hexadecimal-fractional-constant ::=
+      hexadecimal-literal . hexadecimal-literal
+
+    binary-exponent ::=
+      p exponent-sign? decimal-literal
+      P exponent-sign? decimal-literal
+
+    exponent-sign ::= (one of)
+      + -
+    ```
+
+2. The significand of a decimal floating-point literal the *decimal-fractional-constant* or the *decimal-literal* preceeding the *exponent*. The signficand of an hexadecimal floating-point literal is the *hexadecimal-fractional-constant* or the *hexadecimal-literal*. In the significand, the digits and optional period are interpreted as a base `N` real number `s`, where `N` is 10 for a decimal floating-point literal and 16 for an hexadecimal floating-point literal, ignoring all occurences of `_`. If *exponent* or *binary-exponent* is present, the exponent `e` of the floating-point-literal is the result of interpreting the sequence of an optional `sign` and the digits as a base 10 integer. Otherwise, the exponent `e` is 0. The scaled value of the literal is `s × 10e` for a decimal floating-point literal and `s × 2e` for a hexadecimal floating-point literal.
+
+3. The default inferred type of an integer literal is the Val standard library `Double`, which represents a 64-bit floating point number. If the interpreted value of a floating-point literal is not in the range of representable values for its type, the program is ill-formed. Otherwise, the value of a floating-point literal is the scaled value if representable, else the larger or smaller representable value nearest the scaled value, chosen in an implementation-defined manner.
+
+#### 2.4.1.4. Character literals
+
+1. Character literals are recognized by the following grammar:
+
+    ```ebnf
+    character-literal ::=
+      ' escape-char '
+      ' c-char '
+
+    escape-char ::=
+      simple-escape
+      unicode-escape
+    
+    simple-escape ::= (one of)
+      \0 \t \n \r \' \"
+
+    unicode-escape ::=
+      \u hexadecimal-digit
+    
+    c-char ::= (any unicode character except U+27)
+    ```
+
+2. The *hexadecimal-digit*  of a *unicode-escape* represents a Unicode code point.
+
+#### 2.4.1.5. String literals
+
+1. String literals are recognized by the following grammar:
+
+    ```ebnf
+    string-literal ::=
+      simple-string
+      multiline-string
+
+    simple-string ::=
+      " simple-quoted-text? "
+
+    simple-quoted-text ::=
+      simple-quoted-text-item
+      simple-quoted-text simple-quoted-text-item
+
+    simple-quoted-text-item ::=
+      escape-char
+      s-char
+
+    s-char ::= (any unicode character except U+22, U+A, and U+D)
+
+    multiline-string ::=
+      """ multiline-quoted-text """
+
+    multiline-quoted-text ::=
+      multiline-quoted-text-item
+      multiline-quoted-text multiline-quoted-text-item
+
+    multiline-quoted-text-item ::=
+      escape-char
+      m-char
+
+    m-char ::= (any unicode character except U+22 leading a sequence of 3 or more contiguous U+22)
+    ```
+
+# 3. General concepts
+
+## 3.1. Objects
 
 1. An object is the result of a scalar literal expression, the result of an aggregate literal expression, the result of a function call, the result of a call to a `sink` accessor, or the value of an escapable binding.
 
@@ -18,7 +225,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 4. An object occupies a region of storage in its period of construction, throughout its lifetime, and in its period of destruction. The size of that region of storage is defined at compile-type by the type of the object.
 
-### 2.1.1. Object lifetimes
+### 3.1.1. Object lifetimes
 
 1. The lifetime of an object of type `T` begins when:
    
@@ -32,7 +239,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     
     2. the storage which the object occupies is released, or is reused by another object.
 
-## 2.2. Projections
+## 3.2. Projections
 
 1. A projection exposes an existing object.
 
@@ -110,7 +317,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     }
     ```
 
-## 2.3. Sinkability
+## 3.3. Sinkability
 
 1. A stored projection is unsinkable.
 
@@ -129,7 +336,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     }
     ```
 
-## 2.4. Escapability
+## 3.4. Escapability
 
 1. A sinkable object evaluated by a non-consuming expression is escapable at a given program point if it is not projected by any other object at that program point.
 
@@ -150,15 +357,15 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 4. An escapable object may be consumed.
 
-# 3. Declarations
+# 4. Declarations
 
-## 3.1. Modifiers
+## 4.1. Modifiers
 
-### 3.1.1. General
+### 4.1.1. General
 
 1. A modifier may appear at most once in a declaration.
 
-### 3.1.2. Member modifiers
+### 4.1.2. Member modifiers
 
 1. Member modifiers have the form:
 
@@ -179,11 +386,11 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 4. The `out` modifier may only appear in a subscript declaration.
 
-## 3.2. Trait declarations
+## 4.2. Trait declarations
 
-## 3.3. Binding declarations
+## 4.3. Binding declarations
 
-### 3.3.1. General
+### 4.3.1. General
 
 1. Binding declarations have the form:
 
@@ -236,7 +443,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 6. The `sink` capability may only appear in a local binding declaration introduced with `let` or `var`.
 
-### 3.3.2. Initialization
+### 4.3.2. Initialization
 
 1. A static member binding declaration, or global binding declaration must contain an initializer. Initialization occurs at the first dynamic use of one of the declared bindings.
 
@@ -259,7 +466,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     }
     ```
 
-### 3.3.3. Lifetime
+### 4.3.3. Lifetime
 
 1. Binding lifetimes are not bound to lexical scopes.
 
@@ -306,9 +513,9 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
     The lifetime of `thing` ends when `a` is initialized because construction an array literal consumes the literal's elements. A new lifetime starts before `borrow` returns as the call to `Array.remove_last` produces an independent value.
 
-## 3.4. Function declarations
+## 4.4. Function declarations
 
-### 3.4.1. General
+### 4.4.1. General
 
 1. Function declarations have the form:
 
@@ -365,7 +572,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 9.  A capture list may only appear in a function declaration at local scope.
 
-### 3.4.2. Function signatures
+### 4.4.2. Function signatures
 
 1. Function signatures have the form:
 
@@ -378,7 +585,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 3. The output type of a function signture defines the output type of the containing declaration. If that type is omitted, the output type of the declaration is interpreted as `()`.
 
-### 3.4.3. Function implementations
+### 4.4.3. Function implementations
 
 1. The brace statement in the body of a global or local function declaration defines its implementation. A global or local  function declaration must have a function implementation, unless it is static method declaration.
 
@@ -404,7 +611,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     }
     ```
 
-### 3.4.4. Method declarations
+### 4.4.4. Method declarations
 
 1. A bodiless method declaration or a method declaration that contains a bodiless method implementation defines a trait method requirement and may only appear at trait scope. A bodiless static method declaration defines a static trait method requirement and may only appear at trait scope.
 
@@ -456,7 +663,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
     The method `Vector2.scaled(by:)` has an explicit `let` implementation, an explicit `inout` implementation and a synthesized `sink` implementation. The method `Vector2.dot(_:)` has an implicit `let` implementation. The method `Vector2.transpose` has an implicit `inout` implementation.
 
-### 3.4.5. Method implementations
+### 4.4.5. Method implementations
 
 1. A method implementation is a function implementation defined in a method. It may be defined implicitly or explicitly (see Method declarations). Explicit method implementations have the form:
 
@@ -478,9 +685,9 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
  
 5. The output type of an explicit `inout` method implementation is `()`.
 
-## 3.5. Subscript declarations
+## 4.5. Subscript declarations
 
-### 3.5.1. General
+### 4.5.1. General
 
 1. Subscript declarations have the form:
 
@@ -535,7 +742,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 10.  A capture list may only appear in a subscript declaration at local scope.
 
-### 3.5.2. Subscript signatures
+### 4.5.2. Subscript signatures
 
 1. Subscript signatures have the form:
 
@@ -551,7 +758,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 3. The output type of a subscript signture defines the output type of the containing declaration. If that type is prefixed by `var`, all projections produced by the subscript are mutable. Otherwise, only the projections produced by the `inout` implementation of the subscript are mutable.
 
-### 3.5.3. Subscript implementations
+### 4.5.3. Subscript implementations
 
 1. A subscript implementation may be defined ikmplicitly or explicitly. Explicit subscript implementations have the form:
 
@@ -584,7 +791,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 7. A `sink` subscript implementation must have a return statement on every terminating execution path. It must return an escapable object whose type is subtype of the output type of the containing subscript declaration.
 
-## 3.6. Parameter declarations
+## 4.6. Parameter declarations
 
 1. Parameter declarations have the form:
 
@@ -615,9 +822,9 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 4. A default value must be a non-consuming expression. A default value to a `sink` parameter must evlauate to an escapable object.
 
-# 4. Statements
+# 5. Statements
 
-## 4.1. General
+## 5.1. General
 
 1. Statements of the form:
 
@@ -634,7 +841,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 3. Statements do not require explicit statement delimiter. Semicolons can be used to separate statements explicitly, for legibility or to disambiguate exceptional situations. [Note: A common practice is to write each statement on a new line.]
 
-## 4.2. Brace statements (a.k.a. code blocks)
+## 5.2. Brace statements (a.k.a. code blocks)
 
 1. Brace statements are sequences of statements executed in a lexical scope.
 
@@ -652,9 +859,9 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 4. Control enters the lexical scope of a brace statement before executing any sub-statements and exits that lexical scope when it reaches the end of the brace statement.
 
-## 4.3. Loop statments
+## 5.3. Loop statments
 
-### 4.3.1. General
+### 5.3.1. General
 
 1. Loop statements describe iteration. They have the form:
 
@@ -674,7 +881,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 4. A continuation test is a procedure that determines whether an additional iteration should take place, or whether control should exit the loop. A continuation test may take in the head or in the body of a loop.
 
-### 4.3.2. Do-while statments
+### 5.3.2. Do-while statments
 
 1. `do-while` statements have the form:
 
@@ -699,7 +906,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 4. The head of a `do-while` statement unconditionally transfers control to the body of the loop. The tail performs a continuation test. If it succeeds, control is transferred back to the head. Otherwise, it exits the loop.
 
-### 4.3.3. While statments
+### 5.3.3. While statments
 
 1. `while` statements have the form:
 
@@ -719,7 +926,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 3. The head of a `while` statement performs a continuation test. If it succeeds, control is transferred to the body of the loop. Otherwise, it exits the loop. The tail unconditionally transfers control back to the head.
 
-### 4.3.4. For statements
+### 5.3.4. For statements
 
 1. `for` statements have the form:
 
@@ -794,9 +1001,9 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     }
     ```
 
-## 4.4. Jump statements
+## 5.4. Jump statements
 
-### 4.4.1. General
+### 5.4.1. General
 
 1. Jump statements unconditionally transfer control. They have the form:
 
@@ -827,13 +1034,13 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
     After executing these statements, `numbers` contains the sequence `1, 1, 2`.
 
-### 4.4.2. Return statments
+### 5.4.2. Return statments
 
 1. Return statements return an object from a function, terminating the execution path and transferring control back to the function's caller.
 
 2.  The expression in a return statement is called its operand. If the operand is omitted, it is interpreted as `()`. A return statement consumes the value of the operand to initialize an escapable object as result of the call to the containing function.
 
-### 4.4.3. Yield statments
+### 5.4.3. Yield statments
 
 1. Yield statements project an object out of a subscript, suspending the execution path and temporarily transferring control to the subscript's caller. Control comes back to the subscript once after the last use of the yielded projection at the call site, resuming execution at the statement that directly follows the yield statement.
 
@@ -859,31 +1066,31 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 3. The expression in a yield statement is called its operand. A yield statement projects the value of its operand as the result of the call to the containing subscript. The yielded object is projected immutably in a `let` subscript implementation and mutably in an `inout` subscript implementation. The mutability marker `&` must prefix a mutable projection.
 
-### 4.4.4. Break statements
+### 5.4.4. Break statements
 
 1. Break statements exit a loop. Control is transferred to the statement immediately following the loop, if any.
 
-### 4.4.5. Continue statements
+### 5.4.5. Continue statements
 
 1. Continue statements skip the remainder of a loop body. Control is transferred to the begin of the loop.
 
-# 5. Value expressions
+# 6. Value expressions
 
-## 5.1. General
+## 6.1. General
 
 1. An expression is a sequence of operators and operands that specifies a computation. An expression results in a value and may cause side effects.
 
 2. If during the evaluation of an expression, the result is not mathematically defined or not in the range of representable values for its type, the behavior is undefined.
 
-## 5.2. Properties of expressions
+## 6.2. Properties of expressions
 
-### 5.2.1. Consuming expressions
+### 6.2.1. Consuming expressions
 
 1. An expression is consuming if and only if its evaluation may end the lifetime of one or objects not created by the expression's evaluation.
 
-## 5.3. Primary expressions
+## 6.3. Primary expressions
 
-### 5.3.1. General
+### 6.3.1. General
 
 1. Primary expressions have the form:
 
@@ -903,7 +1110,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
       '_'
     ```
 
-### 5.3.2. Scalar literals
+### 6.3.2. Scalar literals
 
 1. Scalar literals have the form:
 
@@ -915,9 +1122,9 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
       STRING-LITERAL
     ```
 
-### 5.3.3. Compound literals
+### 6.3.3. Compound literals
 
-#### 5.3.3.1. General
+#### 6.3.3.1. General
 
 1. Compound literals have the form:
 
@@ -929,7 +1136,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 2. A compound literal consumes the value of each of its components.
 
-#### 5.3.3.2. Buffer literals
+#### 6.3.3.2. Buffer literals
 
 1. Buffer literals have the form:
 
@@ -953,7 +1160,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     let e: Int[] = []        // warning: zero-lenght buffer
     ```
 
-#### 5.3.3.3. Map literal
+#### 6.3.3.3. Map literal
 
 1. Map literals have the form:
 
@@ -983,7 +1190,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     let e: Map<Double, String> = [:] // OK
     ```
 
-### 5.3.4. Primary declaration references
+### 6.3.4. Primary declaration references
 
 1. Primary declaration references have the form:
 
@@ -992,7 +1199,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
       ident-expr type-argument-list?
     ```
 
-### 5.3.5. Identifiers
+### 6.3.5. Identifiers
 
 1. Identifiers have the form:
 
@@ -1055,11 +1262,11 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
     let g = Vector2.scaled(by:)#sink // OK
     ```
 
-## 5.4. Compound expressions
+## 6.4. Compound expressions
 
-### 5.4.1. Member accesses
+### 6.4.1. Member accesses
 
-#### 5.4.1.1. General
+#### 6.4.1.1. General
 
 1. Member accesses have the form:
 
@@ -1073,9 +1280,9 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 3. A value member access whose base is an expression is called an unbound value member access.
 
-### 5.4.2. Function calls
+### 6.4.2. Function calls
 
-#### 5.4.2.1. General
+#### 6.4.2.1. General
 
 1. Function calls have the form:
 
@@ -1104,9 +1311,9 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 3. Arguments to `sink` parameters are consumed. Arguments to `let` parameters are projected immutably in the entire call expression. Arguments to `inout` and `set` parameters are projected mutably in the entire call expression.
 
-## 5.5. Operators
+## 6.5. Operators
 
-### 5.5.1. Operator notations
+### 6.5.1. Operator notations
 
 1. Operator notations have the form:
 
