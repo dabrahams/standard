@@ -280,7 +280,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 ## 3.1. Preamble
 
-1. An *entity* is an object, projection, function, subscript, type, namespace, or module.
+1. An *entity* is an object, projection, function, subscript, method set, type, namespace, or module.
 
 2. A *name* is an expression that denotes an entity. Every name is introduced by a __decl__.
 
@@ -296,9 +296,11 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 3. A lexical scope `ls1` *contains* a lexical scope `ls2` if the region of the program text delimited by `ls1` includes that delimited by `ls2`.
 
-4. A declaration space is a set of names introduced in one or multiple related lexical scopes. The declaration space of a module or namespace declaration includes all names introduced in the lexical scope of that declaration. The declaration space of a type declaration includes all names introduced in the lexical scope of that declaration and all names introduced in the lexical scopes of the extensions of the declared type. The declaration space of an extension declaration is the same as the declaration space of the extended type. The declaration space of any other syntactic element is the set of names introduced in the lexical scope of that element.
+4. A lexical scope `ls1` is a *sibling* of a lexical scope `ls2` if `ls1` is the lexical scope of a type declaration `td` and `ls2` that of an extension of the type declared by `td`, or if `ls2` is a sibling of `ls1`.
 
-5. (Example)
+5. The declaration space of a scope is the set of names introduced in that scope and its siblings. 
+
+6. (Example)
 
     ```ebnf
     type A {
@@ -311,7 +313,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
     The declarations space of the type declaration includes `foo` and `bar`.
 
-6. A declaration may introduce one or more names, or redeclare names introduced by previous declarations in the innermost lexical scope that contains it. The same name may not be introduced more than once in a declaration space.
+7.  A declaration may introduce one or more names in the declaration space of the innermost lexical scope that contains it. The same name may not be introduced more than once in a declaration space.
 
     ```ebnf
     type A {
@@ -346,11 +348,25 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
     - Otherwise:
 
-        - If `ls` is not the lexical scope of a module declaration, the search returns the result of an unqualified lookup from the innermost scope that contains `ls`.
+        - If `ls` is not the lexical scope of a module declaration, the search returns the result of an unqualified lookup for `n` from the innermost scope that contains `ls`.
 
-        - If `ls` is the lexical scope of a module declaration other than the Val standard library, the search returns the result of an unqualified lookup from the module declaration of the Val standard library.
+        - If `ls` is the lexical scope of a module declaration other than the Val standard library, the search returns the result of an unqualified lookup for `n` from the module declaration of the Val standard library.
 
         - If `ls` is the lexical scope of the Val standard library, the search fails.
+
+### 3.3.2. Qualified lookup
+
+#### In a type scope
+
+1. A qualified lookup for a name `n` in a type scope `ls` succeeds and returns an entity `e` if an only if:
+
+    1. `n` is introduced in the declaration space of `ls` and denotes an entity `e`, or
+
+    2. `ls` is the lexical scope of a type declaration `td` that declares conformance to a trait `T` such that a qualified lookup for `n` in the lexical scope of the declaration of `T` succeeds and returns `e`, or
+    
+    3. `ls` is the lexical scope of a type declaration `td` and there exists an extension of the declared type declared by `td` that declares conformance to a trait `T` such that a qualified lookup for `n` int the lexical scope of the declaration of `T` succeeds and returns `e`, or
+
+    4. `ls` is the lexical scope of an extension declaration `ed` for a type `A` such that a qualified lookup for `n` in the lexical scope of the declaration of `A` succeeds and returns `e`.
 
 ## 3.4. Objects
 
@@ -691,7 +707,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
       
     2. A function declaration at type scope that contains a `static` modifier is called a static method declaration; it is also a global function declaration. A static method declaration introduces one global function.
 
-    3. A function declaration at type scope that does not contain a `satic` modifier is called a method declaration. It introduces one or more methods.
+    3. A function declaration at type scope that does not contain a `satic` modifier is called a method declaration. It introduces a method set containing one or more methods.
       
     4. A function declaration at type scope declared with `init` is called a constructor declaration. It introduces one global function.
 
