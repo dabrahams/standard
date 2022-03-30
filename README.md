@@ -280,13 +280,15 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 ## 3.1. Preamble
 
-1. An *entity* is an object, projection, function, subscript, method set, type, namespace, or module.
+1. An *entity* is an object, projection, function, subscript, type, namespace, or module.
 
-2. A *name* is an expression that denotes an entity. Every name is introduced by a __decl__.
+2. A *name* denotes an entity. A name is composed of a stem identifier, and, optionally argument labels and/or an operator notation and/or an method implementation introducer. A name that is only composed of a stem identifier is called a *bare name*. A name that contains labels is called a *function name*. A name that contains an operator notation is called an *operator name*. An operator name may not have argument labels. A name, function name, or operator name that contains a method implementation introducer is called a *method name*. Every name is introduced by a __decl__.
 
-3. A *binding* is a name that denotes an object or a projection. The value of a binding is the denoted object or the value of the denoted projection. A binding may be mutable or immutable. A mutable binding can modify its value or be reassigned to another entity. An immutable binding cannot.
+3. (Example) `foo` and `+` are bar names. `foo(bar:ham:)` is a function name. `infix+` is an operator name. `foo.let` and `foo(bar:ham:).let.` are method names.
 
-4. An __ident-expr__ is said to be a *use* of the name to which it refers. An expression is said to be a use of the all the uses of its sub-expressions.
+4. An __ident-expr__ is said to be a *use* of the name that it denotes. An expression is said to be a use of the all the uses of its sub-expressions.
+
+5. A *binding* is a name that denotes an object or a projection. The value of a binding is the denoted object or the value of the denoted projection. A binding may be mutable or immutable. A mutable binding can modify its value or be reassigned to another entity. An immutable binding cannot.
 
 ## 3.2. Scopes and declaration spaces
 
@@ -328,9 +330,9 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
 1. The procedure that identifies the entity denoted by a name is called *name lookup*. The rules of name lookup apply uniformly to all names.
 
-2. Name lookup succeeds if and only if the procedure identfies a single entity.
+2. Name lookup may either find a single entity or a set of functions, which is called an *overload set*. Overload resolution takes place after name lookup and identifies a single entity from an overload set using the context in which the name appears.
 
-3. Access rules are considered only once name lookup has succeeded.
+3. Access rules are considered only once name lookup and overload resolution have succeeded.
 
 ### 3.3.1. Unqualified name lookup
 
@@ -338,9 +340,9 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
 
     - The looked up name is searched with a qualified lookup into `ls`.
 
-    - If the qualified lookup returns an entity `e` and:
+    - If the qualified lookup returns a set of entities entity `E` and:
     
-        - If `e` is a local binding and `n` occurs after the declaration of `e` in the program text, the search succeeds and returns `e`.
+        - If `E` is a local binding and `n` occurs after the declaration of `e` in the program text, the search succeeds and returns `e`.
       
         - If `e` is a local function without captures, the search succeeds and returns `e`.
 
@@ -707,7 +709,7 @@ On a theoretical front, Val owes greatly to linear types [(Wadler 1990)](https:/
       
     2. A function declaration at type scope that contains a `static` modifier is called a static method declaration; it is also a global function declaration. A static method declaration introduces one global function.
 
-    3. A function declaration at type scope that does not contain a `satic` modifier is called a method declaration. It introduces a method set containing one or more methods.
+    3. A function declaration at type scope that does not contain a `satic` modifier is called a method declaration. It introduces one or more methods.
       
     4. A function declaration at type scope declared with `init` is called a constructor declaration. It introduces one global function.
 
